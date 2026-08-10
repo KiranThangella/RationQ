@@ -2,7 +2,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Article, NewsPipelineItem } from '../types.js';
 import { INITIAL_ARTICLES, INITIAL_PIPELINE_ITEMS } from '../data/mockDatabase.js';
 import { createSlug } from './slugUtils.js';
-import { getApiUrl } from './apiConfig.js';
+import { getApiUrl, safeFetchJson } from './apiConfig.js';
 
 let supabaseClient: SupabaseClient | null = null;
 let supabaseAdminClient: SupabaseClient | null = null;
@@ -258,6 +258,32 @@ if (typeof window !== 'undefined') {
   }, 1000);
 }
 
+export function deduplicateArticles(articles: Article[]): Article[] {
+  const seenIds = new Set<string>();
+  const seenSlugs = new Set<string>();
+  const seenTitles = new Set<string>();
+  const result: Article[] = [];
+
+  for (const a of articles) {
+    if (!a) continue;
+    const id = (a.id || '').trim();
+    const slug = (a.slug || '').trim().toLowerCase();
+    const title = (a.title || '').trim().toLowerCase();
+
+    if (id && seenIds.has(id)) continue;
+    if (slug && seenSlugs.has(slug)) continue;
+    if (title && seenTitles.has(title)) continue;
+
+    if (id) seenIds.add(id);
+    if (slug) seenSlugs.add(slug);
+    if (title) seenTitles.add(title);
+
+    result.push(a);
+  }
+
+  return result;
+}
+
 export async function fetchAllArticlesFromStore(): Promise<Article[]> {
   const map = new Map<string, Article>();
 
@@ -332,7 +358,8 @@ export async function fetchAllArticlesFromStore(): Promise<Article[]> {
     }
   }
 
-  const result = Array.from(map.values());
+  const rawList = Array.from(map.values());
+  const result = deduplicateArticles(rawList);
   result.sort((a, b) => new Date(b.publishedAt || 0).getTime() - new Date(a.publishedAt || 0).getTime());
   memoryArticles = result;
 
@@ -436,12 +463,36 @@ export const updateArticle = saveArticleToStore;
 export const updateArticleInSupabase = saveArticleToStore;
 
 export async function deleteArticleFromStore(id: string): Promise<boolean> {
-  memoryArticles = memoryArticles.filter(a => a.id !== id && a.slug !== id);
+  const targetId = id.trim();
+  memoryArticles = memoryArticles.filter(a => a.id !== targetId && a.slug !== targetId);
 
-  const client = getSupabaseClient();
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem('rationq_articles_store') || localStorage.getItem('rationq_articles_cache');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          const updated = parsed.filter((a: any) => a.id !== targetId && a.slug !== targetId);
+          const serialized = JSON.stringify(updated);
+          localStorage.setItem('rationq_articles_store', serialized);
+          localStorage.setItem('rationq_articles_cache', serialized);
+        }
+      }
+    } catch (e) {}
+  }
+
+  try {
+    await safeFetchJson(`/api/admin/articles/${encodeURIComponent(targetId)}`, {
+      method: 'DELETE',
+    });
+  } catch (err) {}
+
+  const client = getSupabaseAdminClient() || getSupabaseClient();
   if (client && !supabaseArticlesTableMissing) {
     try {
-      await client.from('articles').delete().eq('id', id);
+      await client.from('articles').delete().eq('id', targetId);
+      await client.from('articles').delete().eq('slug', targetId);
+      console.log(`🗑️ Article "${targetId}" deleted from Supabase table.`);
     } catch (err: any) {
       console.warn('Supabase delete notice:', err?.message || err);
     }

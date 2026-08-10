@@ -17,14 +17,15 @@ import { LegalPagesView, LegalTab } from './components/LegalPagesView';
 
 import { Article, Category, State, Notification } from './types';
 import { CATEGORIES, INITIAL_ARTICLES, INITIAL_NOTIFICATIONS, STATES } from './data/mockDatabase';
-import { fetchAllArticlesFromStore } from './lib/supabase';
+import { fetchAllArticlesFromStore, deduplicateArticles } from './lib/supabase';
 import { getApiUrl, safeFetchJson } from './lib/apiConfig';
 import { Language, TRANSLATIONS } from './lib/translations';
-import { Sparkles, SlidersHorizontal, ShieldCheck, Search, Filter, Info, ChevronRight, HeartHandshake } from 'lucide-react';
+import { Sparkles, SlidersHorizontal, ShieldCheck, Search, Filter, Info, ChevronRight, HeartHandshake, ChevronDown } from 'lucide-react';
 
 export function App() {
   const [currentView, setCurrentView] = useState<string>('home');
   const [lang, setLang] = useState<Language>('en');
+  const [visibleCount, setVisibleCount] = useState<number>(6);
 
   // Data states (initialized with client-side fallback & localStorage for static hosting like Cloudflare Pages / Vercel)
   const [articles, setArticles] = useState<Article[]>(() => {
@@ -32,10 +33,10 @@ export function App() {
       const cached = localStorage.getItem('rationq_articles_store') || localStorage.getItem('rationq_articles_cache');
       if (cached) {
         const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) return deduplicateArticles(parsed);
       }
     } catch (e) {}
-    return INITIAL_ARTICLES;
+    return deduplicateArticles(INITIAL_ARTICLES);
   });
   const [categories, setCategories] = useState<Category[]>(CATEGORIES);
   const [states, setStates] = useState<State[]>(STATES);
@@ -129,7 +130,8 @@ export function App() {
         }
       }
 
-      const mergedList = Array.from(map.values());
+      const rawMerged = Array.from(map.values());
+      const mergedList = deduplicateArticles(rawMerged);
       if (mergedList.length > 0) {
         mergedList.sort((a, b) => new Date(b.publishedAt || 0).getTime() - new Date(a.publishedAt || 0).getTime());
         setArticles(mergedList);
@@ -182,7 +184,11 @@ export function App() {
     }
   };
 
-  const safeArticles = Array.isArray(articles) ? articles : [];
+  useEffect(() => {
+    setVisibleCount(6);
+  }, [currentView, selectedCategory, selectedState, searchQuery]);
+
+  const safeArticles = deduplicateArticles(Array.isArray(articles) ? articles : []);
   const safeCategories = Array.isArray(categories) ? categories : [];
   const safeStates = Array.isArray(states) ? states : [];
   const safeNotifications = Array.isArray(notifications) ? notifications : [];
@@ -273,29 +279,31 @@ export function App() {
   };
 
   // Filtered Articles Logic for public UI screens
-  const publishedArticles = safeArticles.filter((art) => art.status === 'published');
+  const publishedArticles = deduplicateArticles(safeArticles.filter((art) => art.status === 'published'));
 
-  const filteredArticles = publishedArticles.filter((art) => {
-    if (selectedCategory && art.category.toLowerCase() !== selectedCategory.toLowerCase()) {
-      return false;
-    }
-    if (selectedState && art.state.toLowerCase() !== selectedState.toLowerCase()) {
-      return false;
-    }
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const matchTitle = art.title.toLowerCase().includes(q);
-      const matchSummary = art.shortSummary.toLowerCase().includes(q);
-      const matchCat = art.category.toLowerCase().includes(q);
-      const matchState = art.state.toLowerCase().includes(q);
-      if (!matchTitle && !matchSummary && !matchCat && !matchState) {
+  const filteredArticles = deduplicateArticles(
+    publishedArticles.filter((art) => {
+      if (selectedCategory && art.category.toLowerCase() !== selectedCategory.toLowerCase()) {
         return false;
       }
-    }
-    return true;
-  });
+      if (selectedState && art.state.toLowerCase() !== selectedState.toLowerCase()) {
+        return false;
+      }
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchTitle = art.title.toLowerCase().includes(q);
+        const matchSummary = art.shortSummary.toLowerCase().includes(q);
+        const matchCat = art.category.toLowerCase().includes(q);
+        const matchState = art.state.toLowerCase().includes(q);
+        if (!matchTitle && !matchSummary && !matchCat && !matchState) {
+          return false;
+        }
+      }
+      return true;
+    })
+  );
 
-  const featuredArticle = publishedArticles.find((a) => a.isFeatured) || publishedArticles[0] || safeArticles[0];
+  const featuredArticle = publishedArticles.find((a: any) => a.isFeatured) || publishedArticles[0] || safeArticles[0];
   const savedArticles = publishedArticles.filter((a) => savedArticleIds.includes(a.id));
   const unreadNotifCount = safeNotifications.filter((n) => !n.read).length;
 
@@ -499,7 +507,7 @@ export function App() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {articles.slice(0, 6).map((art) => (
+              {publishedArticles.slice(0, visibleCount).map((art) => (
                 <ArticleCard
                   key={art.id}
                   article={art}
@@ -510,6 +518,19 @@ export function App() {
                 />
               ))}
             </div>
+
+            {publishedArticles.length > visibleCount && (
+              <div className="text-center pt-4">
+                <button
+                  type="button"
+                  onClick={() => setVisibleCount((prev) => prev + 6)}
+                  className="px-6 py-3 rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-sm shadow-md transition-all inline-flex items-center gap-2 hover:scale-105"
+                >
+                  <span>మరిన్ని పథకాలు చూడండి (Load More Articles)</span>
+                  <ChevronDown className="w-4 h-4 text-emerald-200" />
+                </button>
+              </div>
+            )}
           </section>
 
           {/* Eligibility Callout Banner */}
@@ -553,7 +574,7 @@ export function App() {
                 Latest Government Scheme Updates
               </h1>
               <p className="text-xs sm:text-sm text-slate-600 mt-1">
-                Showing {filteredArticles.length} verified articles and guides.
+                Showing {Math.min(visibleCount, filteredArticles.length)} of {filteredArticles.length} verified articles and guides.
               </p>
             </div>
 
@@ -606,17 +627,32 @@ export function App() {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredArticles.map((art) => (
-                <ArticleCard
-                  key={art.id}
-                  article={art}
-                  onSelect={handleOpenArticle}
-                  isSaved={savedArticleIds.includes(art.id)}
-                  onToggleSave={toggleSaveArticle}
-                  lang={lang}
-                />
-              ))}
+            <div className="space-y-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredArticles.slice(0, visibleCount).map((art) => (
+                  <ArticleCard
+                    key={art.id}
+                    article={art}
+                    onSelect={handleOpenArticle}
+                    isSaved={savedArticleIds.includes(art.id)}
+                    onToggleSave={toggleSaveArticle}
+                    lang={lang}
+                  />
+                ))}
+              </div>
+
+              {filteredArticles.length > visibleCount && (
+                <div className="text-center pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setVisibleCount((prev) => prev + 6)}
+                    className="px-6 py-3 rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-sm shadow-md transition-all inline-flex items-center gap-2 hover:scale-105"
+                  >
+                    <span>ఇంకా కథనాలు చూడండి (Load More Articles - {filteredArticles.length - visibleCount} remaining)</span>
+                    <ChevronDown className="w-4 h-4 text-emerald-200" />
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

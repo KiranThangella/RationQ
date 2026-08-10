@@ -572,6 +572,13 @@ ${rawSourceText}
     res.json(updatedArticle);
   });
 
+  app.delete('/api/admin/articles/:id', async (req: Request, res: Response) => {
+    const { id } = req.params;
+    await deleteArticleFromStore(id);
+    console.log(`🗑️ API Server: Deleted article ${id}`);
+    res.json({ success: true, message: `Article ${id} deleted successfully` });
+  });
+
   app.post('/api/admin/articles/:id/publish', async (req: Request, res: Response) => {
     const { id } = req.params;
     const articles = await fetchAllArticlesFromStore();

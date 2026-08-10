@@ -37,7 +37,11 @@ export function getApiUrl(path: string): string {
 export async function safeFetchJson<T = any>(pathOrUrl: string, options?: RequestInit): Promise<T | null> {
   const url = getApiUrl(pathOrUrl);
   try {
-    const res = await fetch(url, options);
+    const fetchOptions: RequestInit = {
+      mode: 'cors',
+      ...options,
+    };
+    const res = await fetch(url, fetchOptions);
     if (!res.ok) {
       console.warn(`[API Warning] ${res.status} ${res.statusText} for ${url}`);
       return null;

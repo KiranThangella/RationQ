@@ -16,11 +16,12 @@ import {
   Database,
   Search,
   Check,
-  X
+  X,
+  Trash2
 } from 'lucide-react';
 import { Article, NewsPipelineItem } from '../types';
 import { requestAiRewrite, safeSaveArticle } from '../lib/aiRewriter';
-import { fetchPipelineFromStore, deletePipelineItemFromStore, updateArticleInSupabase, updateArticle } from '../lib/supabase';
+import { fetchPipelineFromStore, deletePipelineItemFromStore, updateArticleInSupabase, updateArticle, deleteArticleFromStore } from '../lib/supabase';
 import { createSlug } from '../lib/slugUtils';
 import { getApiUrl, safeFetchJson } from '../lib/apiConfig';
 
@@ -115,6 +116,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [triggeringAutoFetch, setTriggeringAutoFetch] = useState(false);
   const [autoFetchMsg, setAutoFetchMsg] = useState<string | null>(null);
   const [expandingArticleId, setExpandingArticleId] = useState<string | null>(null);
+  const [deletingArticleId, setDeletingArticleId] = useState<string | null>(null);
+
+  const handleDeleteArticle = async (articleId: string, title: string) => {
+    if (!window.confirm(`మీరు ఖచ్చితంగా "${title.slice(0, 40)}..." కథనాన్ని డిలీట్ చేయాలనుకుంటున్నారా?\nAre you sure you want to delete this article?`)) {
+      return;
+    }
+    setDeletingArticleId(articleId);
+    try {
+      await deleteArticleFromStore(articleId);
+      setAutoFetchMsg(`🗑️ "${title.slice(0, 30)}..." కథనం విజయవంతంగా డిలీట్ చేయబడింది (Deleted)!`);
+      onArticlePublished();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to delete article.');
+    } finally {
+      setDeletingArticleId(null);
+    }
+  };
 
   const handleExpandForAdsense = async (articleId: string, title: string) => {
     setExpandingArticleId(articleId);
@@ -850,6 +869,20 @@ Existing Guide: ${editingArticle.detailedGuideText || editingArticle.whatIsSchem
                             <span>⚡ పబ్లిష్</span>
                           </button>
                         )}
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            handleDeleteArticle(art.id, art.title);
+                          }}
+                          disabled={deletingArticleId === art.id}
+                          className="px-2.5 py-1 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-800 text-xs font-bold inline-flex items-center gap-1 border border-rose-200 transition-colors"
+                          title="Delete duplicate or unwanted article"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                          <span>{deletingArticleId === art.id ? 'డిలీట్ అవుతోంది...' : 'డిలీట్ (Delete)'}</span>
+                        </button>
                       </td>
                     </tr>
                   );
