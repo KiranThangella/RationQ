@@ -85,7 +85,7 @@ export const INITIAL_ARTICLES: Article[] = [
       verificationStatus: 'verified',
       department: 'Ministry of Agriculture & Farmers Welfare'
     },
-    generatedImage: 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&q=80&w=1200',
+    generatedImage: 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&fm=webp&q=75&w=800',
     publishedAt: '2026-08-05T10:00:00Z',
     lastVerifiedAt: '2026-08-07T08:00:00Z',
     readTimeMinutes: 3,
@@ -99,7 +99,40 @@ export const INITIAL_ARTICLES: Article[] = [
     titleTelugu: 'పీఎం-కిసాన్ 19వ విడత విడుదల: ₹2,000 నేరుగా బ్యాంక్ ఖాతాలో జమ & eKYC తనిఖీ',
     shortSummaryTelugu: 'కేంద్ర వ్యవసాయ మంత్రిత్వ శాఖ పిఎం-కిసాన్ సమ్మాన్ నిధి కింద 19వ విడత విడుదలను ధృవీకరించింది. eKYC మరియు భూమి సీడింగ్ పూర్తి చేసిన అర్హులైన రైతులకు ₹2,000 నేరుగా ఆధార్ అనుసంధానిత బ్యాంక్ ఖాతాలో జమ కానుంది.',
     whatIsSchemeTelugu: 'పీఎం-కిసాన్ అనేది రైతు కుటుంబాలకు ఏడాదికి ₹6,000 ఆర్థిక సాయం అందించే కేంద్ర ప్రభుత్వ పథకం. ప్రతి 4 నెలలకు ఒకసారి ₹2,000 చొప్పున మూడు విడతలలో సాయం నేరుగా బ్యాంక్ ఖాతాల్లో జమ చేయబడుతుంది.',
-    whatHappenedTelugu: 'కేంద్ర వ్యవసాయం & రైతు సంక్షేమ మంత్రిత్వ శాఖ దేశవ్యాప్తంగా 9.5 కోట్లకు పైగా నమోదైన రైతులకు డైరెక్ట్ బెనిఫిట్ ట్రాన్స్‌ఫర్ (DBT) ద్వారా 19వ విడతను విడుదల చేసింది.'
+    whatHappenedTelugu: 'కేంద్ర వ్యవసాయం & రైతు సంక్షేమ మంత్రిత్వ శాఖ దేశవ్యాప్తంగా 9.5 కోట్లకు పైగా నమోదైన రైతులకు డైరెక్ట్ బెనిఫిట్ ట్రాన్స్‌ఫర్ (DBT) ద్వారా 19వ విడతను విడుదల చేసింది.',
+    detailedGuideText: `Pradhan Mantri Kisan Samman Nidhi (PM-KISAN) stands as one of the largest Direct Benefit Transfer (DBT) initiatives globally, supporting small and marginal farmers across India. Under this scheme, an annual financial assistance of ₹6,000 is distributed in three equal quarterly installments of ₹2,000.
+
+To ensure transparency and eliminate fake accounts, the Government of India has mandated three critical verifications: mandatory Aadhaar eKYC, land record seeding (Khatauni/Pahani verification), and NPCI bank account mapping. Farmers whose records are verified by state agriculture officers receive payments without any middleman intervention.
+
+If your installment is delayed, log into the official portal pmkisan.gov.in, check your status under "Know Your Status", and verify whether Land Seeding, eKYC, and Aadhaar Bank Seeding all display "YES". If any parameter shows "NO", update your records at the nearest CSC center or District Agriculture Office.`,
+    detailedGuideTextTelugu: `ప్రధాన మంత్రి కిసాన్ సమ్మాన్ నిధి (PM-KISAN) అనేది భారతదేశంలోని చిన్న మరియు సన్నకారు రైతులకు ఆర్థిక పరిపుష్టిని అందించే ప్రపంచంలోనే అతిపెద్ద డైరెక్ట్ బెనిఫిట్ ట్రాన్స్‌ఫర్ (DBT) పథకం. ఈ పథకం ద్వారా ప్రతి రైతు కుటుంబానికి ఏడాదికి ₹6,000 చొప్పున మూడు విడతల్లో (ప్రతి విడతకు ₹2,000) సహాయం అందించబడుతుంది.
+
+నిధులు దుర్వినియోగం కాకుండా పారదర్శకత కోసం కేంద్ర ప్రభుత్వం మూడు కీలక నియమాలను తప్పనిసరి చేసింది:
+1. ఆధార్ ఆధారిత eKYC పూర్తయి ఉండాలి.
+2. రెవెన్యూ రికార్డుల్లో భూమి వివరాలు (Land Seeding) ధృవీకరించబడాలి.
+3. బ్యాంక్ ఖాతాకు ఆధార్ మరియు NPCI మ్యాపింగ్ సక్రియంగా ఉండాలి.
+
+ఒకవేళ మీ ఖాతాలో నగదు జమ కాకపోతే, pmkisan.gov.in పోర్టల్‌లోని "Know Your Status" ద్వారా తనిఖీ చేసి, ల్యాండ్ సీడింగ్ లేదా eKYC "NO" అని ఉంటే వెంటనే మీ సమీప మీసేవ/CSC సెంటర్ లేదా వ్యవసాయాధికారిని సంప్రదించండి.`,
+    faqs: [
+      {
+        question: "How can I complete PM-KISAN eKYC from home?",
+        answer: "You can visit pmkisan.gov.in, click on 'eKYC', enter your Aadhaar number, and verify using the OTP sent to your Aadhaar-registered mobile number.",
+        questionTelugu: "ఇంటి నుంచే పిఎం-కిసాన్ eKYC ఎలా పూర్తి చేయాలి?",
+        answerTelugu: "మీరు pmkisan.gov.in వెబ్‌సైట్‌లోని 'eKYC' విభాగంలో ఆధార్ నంబర్ నమోదు చేసి, ఆధార్ లింక్డ్ మొబైల్ నంబర్‌కు వచ్చే OTP నమోదు చేయడం ద్వారా ఉచితంగా eKYC పూర్తి చేయవచ్చు."
+      },
+      {
+        question: "What to do if Land Seeding status shows NO?",
+        answer: "Visit your local District Agriculture Office or Tehsildar office with a copy of your Land Revenue Record (Pahani/RoR) and Aadhaar card to get Land Seeding updated in the portal.",
+        questionTelugu: "ల్యాండ్ సీడింగ్ స్టేటస్ NO అని వస్తే ఏమి చేయాలి?",
+        answerTelugu: "మీ భూమి పహాణీ/పాస్‌బుక్ కాపీ మరియు ఆధార్ కార్డ్‌తో గ్రామ వ్యవసాయ సహాయకుడు (AEO) లేదా తహసీల్దార్ కార్యాలయాన్ని సంప్రదించి పోర్టల్‌లో భూమి వివరాలు నవీకరించుకోవాలి."
+      },
+      {
+        question: "Are income tax payers eligible for PM-KISAN?",
+        answer: "No, individuals or family members who paid Income Tax in the previous assessment year are excluded from PM-KISAN benefits.",
+        questionTelugu: "ఆదాయపు పన్ను (Income Tax) చెల్లించే వారు అర్హులేనా?",
+        answerTelugu: "లేరు, గత సంవత్సరంలో ఇన్కమ్ టాక్స్ చెల్లించిన వారు పిఎం-కిసాన్ పథకానికి అనర్హులు."
+      }
+    ]
   },
   {
     id: 'pm-vishwakarma-scheme-2026',
@@ -153,7 +186,7 @@ export const INITIAL_ARTICLES: Article[] = [
       verificationStatus: 'verified',
       department: 'Ministry of Micro, Small and Medium Enterprises'
     },
-    generatedImage: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&q=80&w=1200',
+    generatedImage: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&fm=webp&q=75&w=800',
     publishedAt: '2026-08-06T14:30:00Z',
     lastVerifiedAt: '2026-08-07T11:00:00Z',
     readTimeMinutes: 4,
@@ -220,7 +253,7 @@ export const INITIAL_ARTICLES: Article[] = [
       verificationStatus: 'verified',
       department: 'Ministry of Housing and Urban Affairs'
     },
-    generatedImage: 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&q=80&w=1200',
+    generatedImage: 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&fm=webp&q=75&w=800',
     publishedAt: '2026-08-04T09:15:00Z',
     lastVerifiedAt: '2026-08-06T15:00:00Z',
     readTimeMinutes: 5,
@@ -286,7 +319,7 @@ export const INITIAL_ARTICLES: Article[] = [
       verificationStatus: 'verified',
       department: 'Agriculture and Cooperation Department, Govt of Telangana'
     },
-    generatedImage: 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&q=80&w=1200',
+    generatedImage: 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&fm=webp&q=75&w=800',
     publishedAt: '2026-08-03T11:20:00Z',
     lastVerifiedAt: '2026-08-07T09:00:00Z',
     readTimeMinutes: 4,
@@ -353,7 +386,7 @@ export const INITIAL_ARTICLES: Article[] = [
       verificationStatus: 'verified',
       department: 'Department of Higher Education'
     },
-    generatedImage: 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&q=80&w=1200',
+    generatedImage: 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&fm=webp&q=75&w=800',
     publishedAt: '2026-08-02T08:00:00Z',
     lastVerifiedAt: '2026-08-06T12:00:00Z',
     readTimeMinutes: 4,
@@ -419,7 +452,7 @@ export const INITIAL_ARTICLES: Article[] = [
       verificationStatus: 'verified',
       department: 'Ministry of Health and Family Welfare'
     },
-    generatedImage: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&q=80&w=1200',
+    generatedImage: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&fm=webp&q=75&w=800',
     publishedAt: '2026-08-01T10:00:00Z',
     lastVerifiedAt: '2026-08-07T10:00:00Z',
     readTimeMinutes: 4,

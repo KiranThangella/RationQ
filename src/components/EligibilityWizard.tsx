@@ -14,7 +14,6 @@ import {
   RefreshCw,
   FileText
 } from 'lucide-react';
-import { apiUrl } from '../lib/apiBase';
 import { EligibilityFormData, MatchResult, State } from '../types';
 
 interface EligibilityWizardProps {
@@ -52,7 +51,7 @@ export const EligibilityWizard: React.FC<EligibilityWizardProps> = ({
   const handleCalculate = async () => {
     setLoading(true);
     try {
-      const res = await fetch(apiUrl('/api/eligibility/check'), {
+      const res = await fetch('/api/eligibility/check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),

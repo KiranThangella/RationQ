@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, SlidersHorizontal, ArrowRight, ShieldCheck, Sparkles, CheckCircle2 } from 'lucide-react';
 import { Language, TRANSLATIONS } from '../lib/translations';
-import { apiUrl } from '../lib/apiBase';
 
 interface HeroSearchProps {
   onSearchSubmit: (query: string) => void;
@@ -24,7 +23,7 @@ export const HeroSearch: React.FC<HeroSearchProps> = ({
 
   useEffect(() => {
     if (searchQuery.trim().length > 1) {
-      fetch(apiUrl(`/api/search?q=${encodeURIComponent(searchQuery)}`))
+      fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`)
         .then((res) => res.json())
         .then((data) => {
           if (data.suggestions) {

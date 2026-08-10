@@ -61,6 +61,12 @@ export interface Source {
   department: string;
 }
 
+export interface ContentImage {
+  url: string;
+  caption: string;
+  captionTelugu?: string;
+}
+
 export interface Article {
   id: string;
   slug: string;
@@ -80,6 +86,7 @@ export interface Article {
   importantWarnings: string[];
   source: Source;
   generatedImage: string;
+  contentImages?: ContentImage[];
   publishedAt: string;
   lastVerifiedAt: string;
   readTimeMinutes: number;
@@ -95,6 +102,9 @@ export interface Article {
   shortSummaryTelugu?: string;
   whatIsSchemeTelugu?: string;
   whatHappenedTelugu?: string;
+  faqs?: { question: string; answer: string; questionTelugu?: string; answerTelugu?: string }[];
+  detailedGuideText?: string;
+  detailedGuideTextTelugu?: string;
 }
 
 export interface NewsPipelineItem {

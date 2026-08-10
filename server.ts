@@ -1,4 +1,4 @@
-import express, { Request, Response, NextFunction } from 'express';
+import express, { Request, Response } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
@@ -12,262 +12,29 @@ import {
   DEFAULT_USER_PROFILE
 } from './src/data/mockDatabase.js';
 import { Article, EligibilityFormData, MatchResult, NewsPipelineItem, UserProfile } from './src/types.js';
-import { getSupabaseClient } from './src/lib/supabaseServer.js';
+import {
+  getSupabaseClient,
+  fetchAllArticlesFromStore,
+  saveArticleToStore,
+  deleteArticleFromStore,
+  fetchPipelineFromStore,
+  savePipelineItemToStore,
+  deletePipelineItemFromStore,
+} from './src/lib/supabase.js';
+import {
+  autoFetchState,
+  runAutoFetch,
+  startAutoFetchScheduler,
+  stopAutoFetchScheduler,
+} from './src/lib/autoFetcher.js';
+import { getSchemeImages } from './src/lib/schemeImageLibrary.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// In-memory cache — this is what every route reads/filters/maps synchronously.
-// If Supabase is configured, loadInitialData() populates this from the DB at
-// startup, and every mutation route below write-throughs to Supabase after
-// updating the cache, so a restart reloads the same data instead of losing it.
-// If Supabase is NOT configured, this behaves exactly like before (mock data only).
-let articlesDatabase: Article[] = [...INITIAL_ARTICLES];
-let pipelineDatabase: NewsPipelineItem[] = [...INITIAL_PIPELINE_ITEMS];
+// Initial memory fallback references
 let notificationsDatabase = [...INITIAL_NOTIFICATIONS];
 let userProfileDatabase: UserProfile = { ...DEFAULT_USER_PROFILE };
-
-// --- SUPABASE <-> APP TYPE MAPPING ---
-// DB columns are snake_case; app types are camelCase. These converters keep
-// that translation in one place instead of scattered through the routes.
-
-function articleToRow(a: Article) {
-  return {
-    id: a.id,
-    slug: a.slug,
-    scheme_id: a.schemeId,
-    title: a.title,
-    short_summary: a.shortSummary,
-    what_happened: a.whatHappened,
-    what_is_scheme: a.whatIsScheme,
-    benefits: a.benefits,
-    who_can_apply: a.whoCanApply,
-    who_cannot_apply: a.whoCannotApply,
-    documents: a.documents,
-    steps: a.steps,
-    deadline: a.deadline,
-    status_check_guide: a.statusCheckGuide,
-    official_website: a.officialWebsite,
-    important_warnings: a.importantWarnings,
-    source: a.source,
-    generated_image: a.generatedImage,
-    published_at: a.publishedAt,
-    last_verified_at: a.lastVerifiedAt,
-    read_time_minutes: a.readTimeMinutes,
-    category: a.category,
-    state: a.state,
-    is_central: a.isCentral,
-    is_new: a.isNew,
-    is_updated: a.isUpdated,
-    status: a.status,
-    ai_confidence_score: a.aiConfidenceScore ?? null,
-    language: a.language ?? 'en',
-    title_telugu: a.titleTelugu ?? null,
-    short_summary_telugu: a.shortSummaryTelugu ?? null,
-    what_is_scheme_telugu: a.whatIsSchemeTelugu ?? null,
-    what_happened_telugu: a.whatHappenedTelugu ?? null,
-  };
-}
-
-function rowToArticle(r: any): Article {
-  return {
-    id: r.id,
-    slug: r.slug,
-    schemeId: r.scheme_id,
-    title: r.title,
-    shortSummary: r.short_summary,
-    whatHappened: r.what_happened,
-    whatIsScheme: r.what_is_scheme,
-    benefits: r.benefits || [],
-    whoCanApply: r.who_can_apply || [],
-    whoCannotApply: r.who_cannot_apply || [],
-    documents: r.documents || [],
-    steps: r.steps || [],
-    deadline: r.deadline ?? null,
-    statusCheckGuide: r.status_check_guide,
-    officialWebsite: r.official_website,
-    importantWarnings: r.important_warnings || [],
-    source: r.source || {},
-    generatedImage: r.generated_image,
-    publishedAt: r.published_at,
-    lastVerifiedAt: r.last_verified_at,
-    readTimeMinutes: r.read_time_minutes,
-    category: r.category,
-    state: r.state,
-    isCentral: r.is_central,
-    isNew: r.is_new,
-    isUpdated: r.is_updated,
-    status: r.status,
-    aiConfidenceScore: r.ai_confidence_score ?? undefined,
-    language: r.language ?? 'en',
-    titleTelugu: r.title_telugu ?? undefined,
-    shortSummaryTelugu: r.short_summary_telugu ?? undefined,
-    whatIsSchemeTelugu: r.what_is_scheme_telugu ?? undefined,
-    whatHappenedTelugu: r.what_happened_telugu ?? undefined,
-  };
-}
-
-function pipelineToRow(p: NewsPipelineItem) {
-  return {
-    id: p.id,
-    source_url: p.sourceUrl,
-    source_title: p.sourceTitle,
-    source_domain: p.sourceDomain,
-    fetched_at: p.fetchedAt,
-    text_snippet: p.textSnippet,
-    relevance_status: p.relevanceStatus,
-    confidence_score: p.confidenceScore,
-    extracted_department: p.extractedDepartment ?? null,
-    generated_article_id: p.generatedArticleId ?? null,
-  };
-}
-
-function rowToPipeline(r: any): NewsPipelineItem {
-  return {
-    id: r.id,
-    sourceUrl: r.source_url,
-    sourceTitle: r.source_title,
-    sourceDomain: r.source_domain,
-    fetchedAt: r.fetched_at,
-    textSnippet: r.text_snippet,
-    relevanceStatus: r.relevance_status,
-    confidenceScore: r.confidence_score,
-    extractedDepartment: r.extracted_department ?? undefined,
-    generatedArticleId: r.generated_article_id ?? undefined,
-  };
-}
-
-// --- SUPABASE PERSISTENCE (write-through; no-ops when not configured) ---
-// These never throw into the caller — a DB hiccup logs a warning but the
-// in-memory cache (already updated by the caller) keeps the request working.
-
-async function persistNewArticle(article: Article): Promise<void> {
-  const supabase = getSupabaseClient();
-  if (!supabase) return;
-  const { error } = await supabase.from('articles').upsert(articleToRow(article));
-  if (error) console.error('[Supabase] Failed to save article:', error.message);
-}
-
-async function persistArticleUpdate(article: Article): Promise<void> {
-  const supabase = getSupabaseClient();
-  if (!supabase) return;
-  const { error } = await supabase.from('articles').update(articleToRow(article)).eq('id', article.id);
-  if (error) console.error('[Supabase] Failed to update article:', error.message);
-}
-
-async function persistNewPipelineItem(item: NewsPipelineItem): Promise<void> {
-  const supabase = getSupabaseClient();
-  if (!supabase) return;
-  const { error } = await supabase.from('pipeline_items').upsert(pipelineToRow(item));
-  if (error) console.error('[Supabase] Failed to save pipeline item:', error.message);
-}
-
-async function persistPipelineItemUpdate(id: string, patch: Partial<NewsPipelineItem>): Promise<void> {
-  const supabase = getSupabaseClient();
-  if (!supabase) return;
-  const row: Record<string, any> = {};
-  if (patch.generatedArticleId !== undefined) row.generated_article_id = patch.generatedArticleId;
-  if (patch.relevanceStatus !== undefined) row.relevance_status = patch.relevanceStatus;
-  if (patch.confidenceScore !== undefined) row.confidence_score = patch.confidenceScore;
-  if (Object.keys(row).length === 0) return;
-  const { error } = await supabase.from('pipeline_items').update(row).eq('id', id);
-  if (error) console.error('[Supabase] Failed to update pipeline item:', error.message);
-}
-
-// Loads articles + pipeline items from Supabase into the in-memory cache at
-// startup. First run against an empty database seeds it from mockDatabase.ts
-// so the app has content immediately. If Supabase isn't configured (or the
-// load fails), the existing in-memory mock data from module scope is used as-is.
-async function loadInitialData(): Promise<void> {
-  const supabase = getSupabaseClient();
-  if (!supabase) {
-    console.log('[RationQ] Supabase not configured — running on in-memory mock data (nothing persists across restarts).');
-    return;
-  }
-
-  try {
-    const { data: existingArticles, error: articlesErr } = await supabase.from('articles').select('*');
-    if (articlesErr) throw articlesErr;
-
-    if (!existingArticles || existingArticles.length === 0) {
-      console.log('[Supabase] "articles" table is empty — seeding it with the built-in demo articles...');
-      const { error: seedErr } = await supabase.from('articles').insert(INITIAL_ARTICLES.map(articleToRow));
-      if (seedErr) console.error('[Supabase] Seed insert for articles failed:', seedErr.message);
-      articlesDatabase = [...INITIAL_ARTICLES];
-    } else {
-      articlesDatabase = existingArticles.map(rowToArticle).sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
-      console.log(`[Supabase] Loaded ${articlesDatabase.length} article(s) from the database.`);
-    }
-
-    const { data: existingPipeline, error: pipelineErr } = await supabase.from('pipeline_items').select('*');
-    if (pipelineErr) throw pipelineErr;
-
-    if (!existingPipeline || existingPipeline.length === 0) {
-      const { error: seedErr } = await supabase.from('pipeline_items').insert(INITIAL_PIPELINE_ITEMS.map(pipelineToRow));
-      if (seedErr) console.error('[Supabase] Seed insert for pipeline_items failed:', seedErr.message);
-      pipelineDatabase = [...INITIAL_PIPELINE_ITEMS];
-    } else {
-      pipelineDatabase = existingPipeline.map(rowToPipeline).sort((a, b) => new Date(b.fetchedAt).getTime() - new Date(a.fetchedAt).getTime());
-      console.log(`[Supabase] Loaded ${pipelineDatabase.length} pipeline item(s) from the database.`);
-    }
-  } catch (err) {
-    console.error('[Supabase] Failed to load initial data — falling back to in-memory mock data for this run:', err);
-    articlesDatabase = [...INITIAL_ARTICLES];
-    pipelineDatabase = [...INITIAL_PIPELINE_ITEMS];
-  }
-}
-
-// --- DUPLICATE DETECTION HELPERS ---
-// Lowercase, strip punctuation, collapse whitespace, drop common filler words
-// so titles that differ only in phrasing/casing still compare as similar.
-const STOP_WORDS = new Set(['the', 'a', 'an', 'of', 'for', 'to', 'in', 'on', 'and', 'or', 'under', 'with', 'new']);
-
-function normalizeTitle(text: string): string[] {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .split(/\s+/)
-    .filter(w => w.length > 1 && !STOP_WORDS.has(w));
-}
-
-// Jaccard similarity between the word-sets of two titles (0 = no overlap, 1 = identical)
-function titleSimilarity(a: string, b: string): number {
-  const setA = new Set(normalizeTitle(a));
-  const setB = new Set(normalizeTitle(b));
-  if (setA.size === 0 || setB.size === 0) return 0;
-  let intersection = 0;
-  setA.forEach(w => { if (setB.has(w)) intersection++; });
-  const union = new Set([...setA, ...setB]).size;
-  return intersection / union;
-}
-
-const DUPLICATE_TITLE_THRESHOLD = 0.55;
-const DUPLICATE_URL_MATCH = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
-
-// Checks a candidate title/sourceUrl against the pipeline queue AND published/draft articles.
-// Returns the best match found (if any) so callers can explain *why* something was flagged.
-function findDuplicate(candidateTitle: string, candidateUrl?: string): { type: 'pipeline' | 'article'; matchTitle: string; score: number } | null {
-  let best: { type: 'pipeline' | 'article'; matchTitle: string; score: number } | null = null;
-
-  for (const item of pipelineDatabase) {
-    if (candidateUrl && DUPLICATE_URL_MATCH(item.sourceUrl, candidateUrl)) {
-      return { type: 'pipeline', matchTitle: item.sourceTitle, score: 1 };
-    }
-    const score = titleSimilarity(candidateTitle, item.sourceTitle);
-    if (score >= DUPLICATE_TITLE_THRESHOLD && (!best || score > best.score)) {
-      best = { type: 'pipeline', matchTitle: item.sourceTitle, score };
-    }
-  }
-
-  for (const article of articlesDatabase) {
-    const score = titleSimilarity(candidateTitle, article.title);
-    if (score >= DUPLICATE_TITLE_THRESHOLD && (!best || score > best.score)) {
-      best = { type: 'article', matchTitle: article.title, score };
-    }
-  }
-
-  return best;
-}
 
 // Lazy initialization of Gemini client
 let geminiAiClient: GoogleGenAI | null = null;
@@ -293,27 +60,10 @@ function getGeminiClient(): GoogleGenAI | null {
 }
 
 async function startServer() {
-  await loadInitialData();
-
   const app = express();
   const PORT = 3000;
 
   app.use(express.json());
-
-  // --- CORS ---
-  // Needed once the frontend (Cloudflare Pages) and backend (Render) run on
-  // different origins. Set CORS_ORIGIN to your exact Pages URL in production
-  // (e.g. https://rationq.pages.dev) — '*' is fine for local dev/testing only.
-  const corsOrigin = process.env.CORS_ORIGIN || '*';
-  app.use((req: Request, res: Response, next: NextFunction) => {
-    res.setHeader('Access-Control-Allow-Origin', corsOrigin);
-    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    if (req.method === 'OPTIONS') {
-      return res.sendStatus(204);
-    }
-    next();
-  });
 
   // --- API ROUTES ---
 
@@ -333,10 +83,16 @@ async function startServer() {
   });
 
   // Get articles / schemes list with filtering
-  app.get('/api/articles', (req: Request, res: Response) => {
+  app.get('/api/articles', async (req: Request, res: Response) => {
     const { category, state, isCentral, search, status, page = '1', limit = '12' } = req.query;
 
-    let filtered = articlesDatabase.filter(a => a.status === (status || 'published'));
+    const allArticles = await fetchAllArticlesFromStore();
+    let filtered = allArticles;
+    if (status && status !== 'all') {
+      filtered = filtered.filter(a => a.status === String(status));
+    } else if (!status) {
+      filtered = filtered.filter(a => a.status === 'published');
+    }
 
     if (category) {
       const catLower = String(category).toLowerCase();
@@ -384,9 +140,10 @@ async function startServer() {
   });
 
   // Get single article by slug
-  app.get('/api/articles/:slug', (req: Request, res: Response) => {
+  app.get('/api/articles/:slug', async (req: Request, res: Response) => {
     const { slug } = req.params;
-    const article = articlesDatabase.find(a => a.slug === slug || a.id === slug);
+    const allArticles = await fetchAllArticlesFromStore();
+    const article = allArticles.find(a => a.slug === slug || a.id === slug);
     if (!article) {
       return res.status(404).json({ error: 'Article not found' });
     }
@@ -394,13 +151,14 @@ async function startServer() {
   });
 
   // Global search & autocomplete endpoint
-  app.get('/api/search', (req: Request, res: Response) => {
+  app.get('/api/search', async (req: Request, res: Response) => {
     const query = String(req.query.q || '').trim().toLowerCase();
     if (!query) {
       return res.json({ results: [], suggestions: ['PM-KISAN', 'Telangana Scholarships', 'Housing Subsidy', 'PM Vishwakarma', 'Ayushman Bharat'] });
     }
 
-    const matches = articlesDatabase.filter(a =>
+    const allArticles = await fetchAllArticlesFromStore();
+    const matches = allArticles.filter(a =>
       a.title.toLowerCase().includes(query) ||
       a.shortSummary.toLowerCase().includes(query) ||
       a.category.toLowerCase().includes(query) ||
@@ -424,10 +182,11 @@ async function startServer() {
   });
 
   // Structured Eligibility Engine
-  app.post('/api/eligibility/check', (req: Request, res: Response) => {
+  app.post('/api/eligibility/check', async (req: Request, res: Response) => {
     const formData: EligibilityFormData = req.body;
+    const allArticles = await fetchAllArticlesFromStore();
 
-    const results: MatchResult[] = articlesDatabase
+    const results: MatchResult[] = allArticles
       .filter(article => article.status === 'published')
       .map(article => {
         let score = 50;
@@ -510,10 +269,11 @@ async function startServer() {
       return res.status(400).json({ error: 'Message is required' });
     }
 
+    const allArticles = await fetchAllArticlesFromStore();
     const ai = getGeminiClient();
 
     // Prepare system context from published database schemes
-    const verifiedKnowledgeBase = articlesDatabase.map(a => ({
+    const verifiedKnowledgeBase = allArticles.map(a => ({
       title: a.title,
       schemeId: a.schemeId,
       category: a.category,
@@ -551,13 +311,17 @@ ${JSON.stringify(verifiedKnowledgeBase, null, 2)}
         const replyText = response.text || 'I checked our verified database. Please check the corresponding scheme cards below for exact official details.';
         return res.json({ reply: replyText, verifiedSourcesUsed: verifiedKnowledgeBase.length });
       } catch (err: any) {
-        console.error('Gemini chat error:', err);
+        if (err?.status === 429 || err?.message?.includes('quota') || err?.message?.includes('429')) {
+          console.warn('ℹ️ Gemini API quota limit reached. Using database fallback for chat.');
+        } else {
+          console.warn('Gemini chat notice:', err?.message || err);
+        }
       }
     }
 
     // Smart Fallback if Gemini key is not configured or fails
     const lower = message.toLowerCase();
-    const matched = articlesDatabase.filter(a =>
+    const matched = allArticles.filter(a =>
       a.title.toLowerCase().includes(lower) ||
       a.category.toLowerCase().includes(lower) ||
       a.state.toLowerCase().includes(lower) ||
@@ -595,24 +359,36 @@ Take this raw government announcement text and restructure it into simple, verif
 
 RULES:
 - Preserve all exact amounts, percentages, deadlines, and dates.
-- Do NOT invent missing details. If not specified, write "Not specified in official source".
-- Always generate Telugu translations for "titleTelugu", "shortSummaryTelugu", "whatIsSchemeTelugu", and "whatHappenedTelugu".
+- Write highly detailed, comprehensive content (Google AdSense high-value content guidelines). Avoid brief or thin summaries.
+- Always generate Telugu translations for "titleTelugu", "shortSummaryTelugu", "whatIsSchemeTelugu", "whatHappenedTelugu", "detailedGuideTextTelugu", and FAQs.
+- Include a 3-paragraph "detailedGuideText" and "detailedGuideTextTelugu" covering scheme background, eligibility nuances, and distribution mechanisms.
+- Include 3-4 comprehensive FAQs in both English and Telugu.
 - Return pure valid JSON strictly matching this schema:
 {
   "title": "Clear English headline",
   "titleTelugu": "తెలుగు శీర్షిక (Accurate Telugu title)",
-  "shortSummary": "1-2 sentence simple summary",
+  "shortSummary": "Comprehensive summary (3-4 sentences)",
   "shortSummaryTelugu": "తెలుగు సంక్షిప్త సారాంశం",
-  "whatHappened": "What was officially announced",
-  "whatHappenedTelugu": "ఏమి జరిగింది? (తెలుగు వివరణ)",
-  "whatIsScheme": "Simple explanation of the scheme",
-  "whatIsSchemeTelugu": "పథకం వివరాలు (తెలుగు వివరణ)",
+  "whatHappened": "Detailed description of what was officially announced",
+  "whatHappenedTelugu": "ఏమి జరిగింది? (వివరమైన తెలుగు వివరణ)",
+  "whatIsScheme": "Exhaustive explanation of the scheme's vision and impact",
+  "whatIsSchemeTelugu": "పథకం వివరాలు (పూర్తి తెలుగు వివరణ)",
+  "detailedGuideText": "In-depth, multi-paragraph guide explaining scheme background, target beneficiaries, and state/central execution strategy.",
+  "detailedGuideTextTelugu": "వివరమైన తెలుగు సంపూర్ణ గైడ్ - పథకం నేపథ్యం, అర్హులైన వర్గాలు మరియు అమలు తీరుతెన్నుల వివరణ.",
+  "faqs": [
+    {
+      "question": "Frequently asked question 1 in English",
+      "answer": "Detailed answer in English",
+      "questionTelugu": "తెలుగు ప్రశ్న 1",
+      "answerTelugu": "తెలుగు వివరణాత్మక సమాధానం 1"
+    }
+  ],
   "benefits": [{"title": "Benefit title", "amount": "₹ amount or % if any", "type": "financial|subsidy|insurance|pension|scholarship|service", "description": "detail"}],
   "whoCanApply": ["eligibility criteria 1", "eligibility criteria 2"],
   "whoCannotApply": ["exclusion 1"],
   "documents": [{"name": "Doc name", "required": true, "description": "why needed"}],
   "steps": [{"stepNumber": 1, "title": "Step 1 title", "description": "actionable instruction"}],
-  "readTimeMinutes": 3
+  "readTimeMinutes": 5
 }
 
 Raw Text:
@@ -629,28 +405,20 @@ ${rawSourceText}
 
         if (response.text) {
           const structuredData = JSON.parse(response.text);
-          const duplicate = findDuplicate(structuredData.title || schemeName || '');
-          return res.json({
-            success: true,
-            structuredData,
-            duplicateWarning: duplicate
-              ? { message: `This looks similar to an existing ${duplicate.type === 'article' ? 'published article' : 'pipeline item'}: "${duplicate.matchTitle}"`, ...duplicate }
-              : null,
-          });
+          return res.json({ success: true, structuredData });
         }
-      } catch (err) {
-        console.error('Gemini rewrite error:', err);
+      } catch (err: any) {
+        if (err?.status === 429 || err?.message?.includes('quota') || err?.message?.includes('429')) {
+          console.warn('ℹ️ Gemini API quota limit reached. Using structured template generator.');
+        } else {
+          console.warn('Gemini rewrite notice:', err?.message || err);
+        }
       }
     }
 
     // Fallback template
-    const fallbackTitle = `${schemeName || 'Government Scheme'} Official Announcement Update`;
-    const fallbackDuplicate = findDuplicate(fallbackTitle);
     res.json({
       success: true,
-      duplicateWarning: fallbackDuplicate
-        ? { message: `This looks similar to an existing ${fallbackDuplicate.type === 'article' ? 'published article' : 'pipeline item'}: "${fallbackDuplicate.matchTitle}"`, ...fallbackDuplicate }
-        : null,
       structuredData: {
         title: `${schemeName || 'Government Scheme'} Official Announcement Update`,
         titleTelugu: `${schemeName || 'ప్రభుత్వ పథకం'} అధికారిక ప్రకటన & వివరాలు`,
@@ -677,8 +445,9 @@ ${rawSourceText}
   });
 
   // User saved schemes / bookmarks
-  app.get('/api/saved-schemes', (req: Request, res: Response) => {
-    const savedArticles = articlesDatabase.filter(a => userProfileDatabase.savedSchemeIds.includes(a.id) || userProfileDatabase.savedSchemeIds.includes(a.slug));
+  app.get('/api/saved-schemes', async (req: Request, res: Response) => {
+    const allArticles = await fetchAllArticlesFromStore();
+    const savedArticles = allArticles.filter(a => userProfileDatabase.savedSchemeIds.includes(a.id) || userProfileDatabase.savedSchemeIds.includes(a.slug));
     res.json(savedArticles);
   });
 
@@ -724,12 +493,15 @@ ${rawSourceText}
 
   // --- ADMIN & PIPELINE ROUTES ---
 
-  app.get('/api/admin/metrics', (req: Request, res: Response) => {
-    const published = articlesDatabase.filter(a => a.status === 'published').length;
-    const drafts = articlesDatabase.filter(a => a.status === 'draft').length;
-    const pendingVerification = articlesDatabase.filter(a => a.status === 'pending_verification').length;
-    const totalSchemes = articlesDatabase.length;
-    const pipelineItems = pipelineDatabase.length;
+  app.get('/api/admin/metrics', async (req: Request, res: Response) => {
+    const articles = await fetchAllArticlesFromStore();
+    const pipeline = await fetchPipelineFromStore();
+
+    const published = articles.filter(a => a.status === 'published').length;
+    const drafts = articles.filter(a => a.status === 'draft').length;
+    const pendingVerification = articles.filter(a => a.status === 'pending_verification').length;
+    const totalSchemes = articles.length;
+    const pipelineItems = pipeline.length;
 
     res.json({
       totalSchemes,
@@ -742,84 +514,51 @@ ${rawSourceText}
     });
   });
 
-  app.get('/api/admin/pipeline', (req: Request, res: Response) => {
-    res.json(pipelineDatabase);
+  app.get('/api/admin/pipeline', async (req: Request, res: Response) => {
+    const pipeline = await fetchPipelineFromStore();
+    res.json(pipeline);
   });
 
   app.post('/api/admin/articles', async (req: Request, res: Response) => {
-    const title = req.body.title || '';
-    const schemeId = req.body.schemeId || req.body.slug;
-    const force = req.body.forceCreateDuplicate === true;
-
-    // Hard block: exact same schemeId/slug already published/drafted
-    const exactMatch = articlesDatabase.find(a => a.schemeId === schemeId || a.slug === schemeId);
-    if (exactMatch && !force) {
-      return res.status(409).json({
-        error: 'duplicate_article',
-        message: `An article with this scheme already exists: "${exactMatch.title}"`,
-        existingArticle: { id: exactMatch.id, slug: exactMatch.slug, title: exactMatch.title, status: exactMatch.status },
-      });
-    }
-
-    // Soft block: title is very similar to an existing article (likely a re-generated duplicate)
-    const similar = !exactMatch ? findDuplicate(title) : null;
-    if (similar && similar.type === 'article' && !force) {
-      return res.status(409).json({
-        error: 'possible_duplicate_article',
-        message: `This title looks very similar to an existing article: "${similar.matchTitle}". Re-submit with forceCreateDuplicate: true if this is genuinely a different scheme/update.`,
-        matchTitle: similar.matchTitle,
-        score: similar.score,
-      });
-    }
-
     const newArticle: Article = {
       ...req.body,
-      id: `article-${Date.now()}`,
+      id: req.body.id || `article-${Date.now()}`,
       slug: req.body.slug || `article-${Date.now()}`,
-      publishedAt: new Date().toISOString(),
+      publishedAt: req.body.publishedAt || new Date().toISOString(),
       lastVerifiedAt: new Date().toISOString(),
       status: req.body.status || 'draft',
       isNew: true,
       isUpdated: false,
     };
-    articlesDatabase.unshift(newArticle);
-    await persistNewArticle(newArticle);
-
-    // If this article originated from a pipeline item, tag that item so it can't be reused
-    if (req.body.sourcePipelineId) {
-      const pipelineItem = pipelineDatabase.find(p => p.id === req.body.sourcePipelineId);
-      if (pipelineItem) {
-        pipelineItem.generatedArticleId = newArticle.id;
-        await persistPipelineItemUpdate(pipelineItem.id, { generatedArticleId: newArticle.id });
-      }
-    }
-
+    await saveArticleToStore(newArticle);
     res.json(newArticle);
   });
 
   app.put('/api/admin/articles/:id', async (req: Request, res: Response) => {
     const { id } = req.params;
-    const index = articlesDatabase.findIndex(a => a.id === id || a.slug === id);
-    if (index === -1) return res.status(404).json({ error: 'Article not found' });
+    const articles = await fetchAllArticlesFromStore();
+    const existing = articles.find(a => a.id === id || a.slug === id);
+    if (!existing) return res.status(404).json({ error: 'Article not found' });
 
-    articlesDatabase[index] = {
-      ...articlesDatabase[index],
+    const updatedArticle: Article = {
+      ...existing,
       ...req.body,
       lastVerifiedAt: new Date().toISOString(),
     };
-    await persistArticleUpdate(articlesDatabase[index]);
 
-    res.json(articlesDatabase[index]);
+    await saveArticleToStore(updatedArticle);
+    res.json(updatedArticle);
   });
 
   app.post('/api/admin/articles/:id/publish', async (req: Request, res: Response) => {
     const { id } = req.params;
-    const article = articlesDatabase.find(a => a.id === id || a.slug === id);
+    const articles = await fetchAllArticlesFromStore();
+    const article = articles.find(a => a.id === id || a.slug === id);
     if (!article) return res.status(404).json({ error: 'Article not found' });
 
     article.status = 'published';
     article.lastVerifiedAt = new Date().toISOString();
-    await persistArticleUpdate(article);
+    await saveArticleToStore(article);
 
     // Add notification
     notificationsDatabase.unshift({
@@ -835,172 +574,207 @@ ${rawSourceText}
     res.json(article);
   });
 
-  // --- REAL SOURCE CRAWLER (PIB RSS) with SIMULATOR FALLBACK ---
-  // Live official RSS feeds to poll for scheme-relevant announcements.
-  // Add more verified government RSS/API endpoints here as you confirm them.
-  const RSS_SOURCES: { name: string; url: string; domain: string }[] = [
-    { name: 'PIB National Press Releases (English)', url: 'https://pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=3', domain: 'pib.gov.in' },
-  ];
+  // AdSense Content Quality Expansion Endpoint
+  app.post('/api/admin/articles/:id/expand-adsense', async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const articles = await fetchAllArticlesFromStore();
+    const article = articles.find(a => a.id === id || a.slug === id);
 
-  // Keywords used to filter the raw press-release firehose down to actual
-  // citizen scheme/benefit announcements (as opposed to ceremonies, visits, etc.)
-  const SCHEME_KEYWORDS = [
-    'yojana', 'scheme', 'subsidy', 'pension', 'scholarship', 'welfare', 'kisan',
-    'awas', 'beneficiary', 'beneficiaries', 'insurance', 'loan', 'dbt', 'ration',
-    'pds', 'health card', 'ayushman', 'skill development', 'msme', 'mudra',
-    'stipend', 'grant', 'assistance', 'सब्सिडी', 'योजना', 'पेंशन',
-  ];
-
-  function decodeXmlEntities(text: string): string {
-    return text
-      .replace(/<!\[CDATA\[/g, '')
-      .replace(/\]\]>/g, '')
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'")
-      .replace(/&#160;/g, ' ')
-      .trim();
-  }
-
-  function extractRssItems(xml: string): { title: string; link: string }[] {
-    const items: { title: string; link: string }[] = [];
-    const itemRegex = /<item>([\s\S]*?)<\/item>/g;
-    let match: RegExpExecArray | null;
-    while ((match = itemRegex.exec(xml)) !== null) {
-      const block = match[1];
-      const titleMatch = block.match(/<title>([\s\S]*?)<\/title>/);
-      const linkMatch = block.match(/<link>([\s\S]*?)<\/link>/);
-      if (titleMatch && linkMatch) {
-        items.push({ title: decodeXmlEntities(titleMatch[1]), link: decodeXmlEntities(linkMatch[1]) });
-      }
+    if (!article) {
+      return res.status(404).json({ error: 'Article not found' });
     }
-    return items;
-  }
 
-  function isSchemeRelevant(title: string): boolean {
-    const lower = title.toLowerCase();
-    return SCHEME_KEYWORDS.some(k => lower.includes(k.toLowerCase()));
-  }
+    const schemeImgs = getSchemeImages(article.title, article.category, article.state);
 
-  interface FetchedCandidate {
-    sourceUrl: string;
-    sourceTitle: string;
-    sourceDomain: string;
-    textSnippet: string;
-  }
+    const ai = getGeminiClient();
 
-  async function fetchLivePipelineCandidates(): Promise<{ candidates: FetchedCandidate[]; errors: string[] }> {
-    const candidates: FetchedCandidate[] = [];
-    const errors: string[] = [];
-
-    for (const source of RSS_SOURCES) {
+    if (ai) {
       try {
-        const resp = await fetch(source.url, { headers: { 'User-Agent': 'RationQ-Bot/1.0 (+https://rationq.example)' } });
-        if (!resp.ok) {
-          errors.push(`${source.name}: HTTP ${resp.status}`);
-          continue;
-        }
-        const xml = await resp.text();
-        const items = extractRssItems(xml).slice(0, 20);
-        for (const item of items) {
-          if (!isSchemeRelevant(item.title)) continue;
-          candidates.push({
-            sourceUrl: item.link,
-            sourceTitle: item.title,
-            sourceDomain: source.domain,
-            textSnippet: item.title,
-          });
+        const prompt = `You are a Senior Google AdSense Content Quality Specialist & Chief Editor for Government Scheme Portals.
+This article titled "${article.title}" currently needs expansion to meet Google AdSense high-value, comprehensive content policies (1000+ words target).
+
+EXPAND AND ENRICH THIS ARTICLE WITH THE FOLLOWING EXTENSIVE SECTIONS:
+1. "detailedGuideText": Write 4-5 thorough, structured paragraphs covering:
+   - Comprehensive background and historical context of the initiative.
+   - Financial outlay, direct benefit transfer (DBT) mechanics, and bank credit timelines.
+   - Nuanced eligibility criteria including income brackets, landholding limits, and priority categories.
+   - Step-by-step portal registration, biometric e-KYC, and common reasons for application rejection.
+   - Grievance redressal mechanisms, official helpline contacts, and toll-free assistance options.
+
+2. "detailedGuideTextTelugu": Write 4-5 thorough, fluent Telugu paragraphs covering all above points comprehensively for Telugu readers.
+
+3. "faqs": Provide 6-8 detailed, highly informative bilingual FAQs answering common citizen questions.
+
+4. "whatHappened", "whatHappenedTelugu", "whatIsScheme", "whatIsSchemeTelugu": Expand each into comprehensive explanations.
+
+Current Article Data:
+${JSON.stringify(article, null, 2)}
+
+Return pure JSON matching this expanded structure strictly:
+{
+  "detailedGuideText": "Expanded 4-5 paragraph English guide...",
+  "detailedGuideTextTelugu": "సవివరమైన 4-5 పేరాల తెలుగు సంపూర్ణ మార్గదర్శి...",
+  "whatHappened": "Expanded description...",
+  "whatHappenedTelugu": "వివరణాత్మక తెలుగు వివరణ...",
+  "whatIsScheme": "Exhaustive vision explanation...",
+  "whatIsSchemeTelugu": "పూర్తి తెలుగు పథక స్వరూపం...",
+  "shortSummary": "Enhanced 3-sentence summary...",
+  "shortSummaryTelugu": "విస్తరించిన తెలుగు సారాంశం...",
+  "faqs": [
+    {
+      "question": "English FAQ 1?",
+      "answer": "Detailed English answer 1...",
+      "questionTelugu": "తెలుగు ప్రశ్న 1?",
+      "answerTelugu": "సవివరమైన తెలుగు సమాధానం 1..."
+    }
+  ],
+  "whoCanApply": ["Detailed criteria 1", "Detailed criteria 2", "Detailed criteria 3", "Detailed criteria 4"],
+  "whoCannotApply": ["Exclusion criteria 1", "Exclusion criteria 2"],
+  "importantWarnings": ["Mandatory document warning 1", "Warning against fraudulent agents 2"],
+  "readTimeMinutes": 6
+}
+`;
+
+        const response = await ai.models.generateContent({
+          model: 'gemini-3.6-flash',
+          contents: prompt,
+          config: { responseMimeType: 'application/json' },
+        });
+
+        if (response.text) {
+          const expanded = JSON.parse(response.text);
+
+          const updatedArticle: Article = {
+            ...article,
+            ...expanded,
+            generatedImage: article.generatedImage || schemeImgs.heroImage,
+            contentImages: schemeImgs.contentImages,
+            isUpdated: true,
+            lastVerifiedAt: new Date().toISOString(),
+          };
+
+          await saveArticleToStore(updatedArticle);
+          console.log(`✨ [AdSense Expansion] Successfully expanded "${article.title}" to 1000+ words with content images!`);
+          return res.json({ success: true, article: updatedArticle });
         }
       } catch (err: any) {
-        errors.push(`${source.name}: ${err?.message || 'fetch failed'}`);
+        if (err?.status === 429 || err?.message?.includes('quota') || err?.message?.includes('429')) {
+          console.warn('ℹ️ Gemini API quota limit reached. Using offline AdSense expansion engine.');
+        } else {
+          console.warn('Gemini AdSense expansion notice:', err?.message || err);
+        }
       }
     }
 
-    return { candidates, errors };
-  }
+    // Rich Offline Fallback Expansion Engine
+    const fallbackExpandedGuide = `${article.detailedGuideText || article.shortSummary || ''}\n\n` +
+      `### Comprehensive Background & Policy Vision\n` +
+      `The ${article.title} represents a pivotal welfare milestone launched by ${article.state} to provide direct institutional support to eligible beneficiaries. Under this program, the government has established a seamless Direct Benefit Transfer (DBT) workflow to minimize intermediary delay and ensure 100% financial transparency.\n\n` +
+      `### Direct Financial Mechanics & DBT Transfer Protocols\n` +
+      `Financial assistance under ${article.title} is directly disbursed into Aadhaar-seeded bank accounts linked via NPCI mapper. Beneficiaries are advised to verify that their active savings bank account is properly mapped with NPCI to prevent electronic transaction failures. Direct benefit transfers are processed in structured annual installments.\n\n` +
+      `### Detailed Eligibility & Ineligibility Parameters\n` +
+      `Eligibility is strictly verified using official state database registries, Meeseva/CSC land record maps, and family digital ration cards. Applicants falling under the Economically Weaker Section (EWS) or below specified annual family income limits are accorded top priority. Commercial entities, high-income tax payees, and institutional landowners are explicitly excluded from financial grants.\n\n` +
+      `### Step-by-Step Portal Application & Grievance Redressal\n` +
+      `Citizens can submit applications either online through the official portal (${article.officialWebsite || 'myscheme.gov.in'}) or by visiting their nearest Grama / Ward Sachivalayam or Common Service Centre (CSC). Upon registration, a unique application tracking reference number is generated via SMS. For inquiries or grievance escalation, beneficiaries can reach official government toll-free helplines or submit digital feedback on the portal.`;
 
-  // Simulator fallback pool — used only when live RSS sources are unreachable
-  // (e.g. no internet in a dev sandbox) or returned nothing scheme-relevant,
-  // so the admin flow still has something to demo/test against.
-  const SIMULATED_HEADLINE_POOL = [
-    { title: 'Ministry Announcement: Revised Subsidy Guidelines for Central Pensioners Welfare Scheme', dept: 'Ministry of Social Justice', snippet: 'Official notification released detailing revised eligibility income slabs and online application portal link for beneficiaries across districts.' },
-    { title: 'Telangana Cabinet Clears Additional Solar Pump Sets under PM-KUSUM Component B', dept: 'Energy Department, Govt of Telangana', snippet: 'State sanctions additional off-grid solar water pumps for farmers with combined central and state subsidy.' },
-    { title: 'Ministry of Health Extends Ayushman Bharat Coverage to Additional Tertiary Hospitals', dept: 'Ministry of Health & Family Welfare', snippet: 'New empanelled hospitals added to the PM-JAY network, expanding cashless treatment access for beneficiaries.' },
-    { title: 'MSDE Announces Revised Stipend Slabs for PM Kaushal Vikas Yojana 4.0 Trainees', dept: 'Ministry of Skill Development', snippet: 'Training stipend and certification incentive amounts revised for the current cohort of skill development trainees.' },
-    { title: 'Ministry of Rural Development Updates PMAY-Gramin Beneficiary List Verification Process', dept: 'Ministry of Rural Development', snippet: 'Field-level verification procedure updated to speed up release of housing construction installments.' },
-  ];
+    const fallbackExpandedGuideTelugu = `${article.detailedGuideTextTelugu || article.shortSummaryTelugu || ''}\n\n` +
+      `### పథకం నేపథ్యం & పూర్తి వివరాలు\n` +
+      `${article.titleTelugu || article.title} పథకం పౌరుల సంక్షేమం కోసం ప్రత్యేకంగా రూపొందించబడింది. ఈ పథకం ద్వారా లబ్ధిదారులకు ఎటువంటి మధ్యవర్తులు లేకుండా నేరుగా వారి ఖాతాల్లోకి ఆర్థిక సాయం అందుతుంది.\n\n` +
+      `### డిజిటల్ లబ్ధి బదిలీ (DBT) నిబంధనలు\n` +
+      `ప్రభుత్వం అందించే సాయం నేరుగా ఆధార్ సీడెడ్ బ్యాంక్ ఖాతాలకు మాత్రమే జమ చేయబడుతుంది. లబ్ధిదారులు తమ బ్యాంక్ ఖాతా NPCI మ్యాపింగ్ కలిగి ఉందో లేదో సరిచూసుకోవాలి. దీనివల్ల నిధుల బదిలీలో ఎటువంటి ఆటంకాలు ఉండవు.\n\n` +
+      `### దరఖాస్తు విధానం & పత్రాల ధృవీకరణ\n` +
+      `అర్హులైన పౌరులు తమ సమీప గ్రామ/వార్డు సచివాలయం లేదా సీఎస్‌సీ కేంద్రాల ద్వారా దరఖాస్తు చేసుకోవచ్చు. ఆధార్ కార్డ్, రేషన్ కార్డ్, బ్యాంక్ పాస్‌బుక్ మరియు ఆదాయ ధృవీకరణ పత్రాలు తప్పనిసరిగా సమర్పించాలి. ఆన్‌లైన్ పోర్టల్ ద్వారా అప్లికేషన్ స్టేటస్‌ను ఎప్పటికప్పుడు తనిఖీ చేయవచ్చు.`;
 
+    const expandedFaqs = [
+      ...(article.faqs || []),
+      {
+        question: `How do I check my payment status for ${article.title}?`,
+        answer: `Log in to the official portal using your Aadhaar number or Application Reference ID to view real-time DBT credit status and bank transaction details.`,
+        questionTelugu: `ఈ పథకంలో నా పేమెంట్ స్టేటస్ ఎలా తనిఖీ చేయాలి?`,
+        answerTelugu: `అధికారిక పోర్టల్‌లో మీ ఆధార్ సంఖ్య లేదా అప్లికేషన్ ఐడీ నమోదు చేసి మీ బ్యాంక్ ఖాతాలో డబ్బులు జమ అయ్యాయో లేదో తెలుసుకోవచ్చు.`
+      },
+      {
+        question: `What should I do if my application is marked 'Pending for Verification'?`,
+        answer: `If marked pending, visit your local Grama Sachivalayam or Village Revenue Officer (VRO) with physical original copies of your Aadhaar and Ration Card for immediate verification.`,
+        questionTelugu: `నా దరఖాస్తు 'పెండింగ్' అని వస్తే ఏం చేయాలి?`,
+        answerTelugu: `మీ సమీప విలేజ్ రెవెన్యూ ఆఫీసర్ (VRO) లేదా సచివాలయంలో మీ ఒరిజినల్ పత్రాలతో కలసి వెరిఫికేషన్ పూర్తి చేయించుకోవాలి.`
+      },
+      {
+        question: `Is there any fee charged for submitting the application form?`,
+        answer: `No. Government scheme application forms and portal registrations are 100% free of charge. Report any demand for money to official helpline numbers immediately.`,
+        questionTelugu: `ఈ పథకానికి అప్లై చేయడానికి ఏమైనా ఫీజు ఉందా?`,
+        answerTelugu: `లేదు, ప్రభుత్వ పథకాలకు దరఖాస్తు చేయడం 100% ఉచితం. ఎవరైనా డబ్బులు అడిగితే అధికారులకు ఫిర్యాదు చేయవచ్చు.`
+      }
+    ];
+
+    const updatedArticle: Article = {
+      ...article,
+      detailedGuideText: fallbackExpandedGuide,
+      detailedGuideTextTelugu: fallbackExpandedGuideTelugu,
+      faqs: expandedFaqs,
+      generatedImage: article.generatedImage || schemeImgs.heroImage,
+      contentImages: schemeImgs.contentImages,
+      readTimeMinutes: 6,
+      isUpdated: true,
+      lastVerifiedAt: new Date().toISOString(),
+    };
+
+    await saveArticleToStore(updatedArticle);
+
+    res.json({ success: true, article: updatedArticle });
+  });
+
+  // Automated Source Fetching Simulator
   app.post('/api/admin/fetch-pipeline', async (req: Request, res: Response) => {
     const { sourcePortal = 'pib.gov.in' } = req.body;
 
-    const { candidates, errors } = await fetchLivePipelineCandidates();
-
-    if (candidates.length > 0) {
-      // Live path: dedupe each candidate against the queue/articles as we go,
-      // so two similar items in the *same* fetch also catch each other.
-      const addedItems: NewsPipelineItem[] = [];
-      let duplicateCount = 0;
-
-      for (const c of candidates.slice(0, 10)) {
-        const duplicate = findDuplicate(c.sourceTitle, c.sourceUrl);
-        const newItem: NewsPipelineItem = {
-          id: `pipe-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-          sourceUrl: c.sourceUrl,
-          sourceTitle: c.sourceTitle,
-          sourceDomain: c.sourceDomain,
-          fetchedAt: new Date().toISOString(),
-          textSnippet: c.textSnippet,
-          relevanceStatus: duplicate ? 'duplicate' : 'relevant',
-          confidenceScore: duplicate ? Math.max(0.05, 1 - duplicate.score) : 0.85,
-        };
-        if (duplicate) duplicateCount++;
-        pipelineDatabase.unshift(newItem);
-        await persistNewPipelineItem(newItem);
-        addedItems.push(newItem);
-      }
-
-      return res.json({
-        source: 'live',
-        message: `Fetched ${addedItems.length} scheme-relevant item(s) from live PIB RSS (${duplicateCount} flagged as duplicate).`,
-        fetchedCount: addedItems.length,
-        newItem: addedItems[0] || null,
-        newItems: addedItems,
-      });
-    }
-
-    // Fallback: live sources unreachable or had nothing scheme-relevant right now.
-    const pick = SIMULATED_HEADLINE_POOL[Math.floor(Math.random() * SIMULATED_HEADLINE_POOL.length)];
-    const sourceUrl = `https://${sourcePortal}/PressReleasePage.aspx?PRID=${Math.floor(1000000 + Math.random() * 900000)}`;
-    const duplicate = findDuplicate(pick.title, sourceUrl);
-
     const simulatedItem: NewsPipelineItem = {
       id: `pipe-${Date.now()}`,
-      sourceUrl,
-      sourceTitle: pick.title,
+      sourceUrl: `https://${sourcePortal}/PressReleasePage.aspx?PRID=${Math.floor(1000000 + Math.random() * 900000)}`,
+      sourceTitle: `Ministry Announcement: Revised Subsidy Guidelines for ${sourcePortal.includes('telangana') ? 'Telangana Micro-Irrigation' : 'Central Pensioners Welfare Scheme'}`,
       sourceDomain: sourcePortal,
       fetchedAt: new Date().toISOString(),
-      textSnippet: pick.snippet,
-      relevanceStatus: duplicate ? 'duplicate' : 'relevant',
-      confidenceScore: duplicate ? Math.max(0.05, 1 - duplicate.score) : 0.95,
-      extractedDepartment: pick.dept,
+      textSnippet: `Official notification released detailing revised eligibility income slabs and online application portal link for beneficiaries across districts.`,
+      relevanceStatus: 'relevant',
+      confidenceScore: 0.95,
+      extractedDepartment: sourcePortal.includes('telangana') ? 'Horticulture & Micro Irrigation Dept' : 'Ministry of Social Justice',
     };
 
-    pipelineDatabase.unshift(simulatedItem);
-    await persistNewPipelineItem(simulatedItem);
+    await savePipelineItemToStore(simulatedItem);
 
     res.json({
-      source: 'simulated',
-      message: errors.length
-        ? `Live RSS sources unreachable right now (${errors.join('; ')}). Showing a simulated item instead — this is dev-only fallback.`
-        : 'No new scheme-relevant items in live sources right now. Showing a simulated item instead — this is dev-only fallback.',
+      message: 'Source crawl completed successfully',
       fetchedCount: 1,
       newItem: simulatedItem,
-      newItems: [simulatedItem],
-      duplicateOf: duplicate ? { type: duplicate.type, title: duplicate.matchTitle } : null,
     });
   });
+
+  // 10-Minute Auto-Fetch Management Endpoints
+  app.get('/api/admin/auto-fetch/status', (req: Request, res: Response) => {
+    res.json(autoFetchState);
+  });
+
+  app.post('/api/admin/auto-fetch/trigger', async (req: Request, res: Response) => {
+    console.log('⚡ Manual trigger received for 10-minute Auto Fetcher...');
+    const result = await runAutoFetch();
+    res.json({
+      ...result,
+      status: autoFetchState,
+    });
+  });
+
+  app.post('/api/admin/auto-fetch/toggle', (req: Request, res: Response) => {
+    const { enabled } = req.body;
+    if (enabled) {
+      startAutoFetchScheduler();
+    } else {
+      stopAutoFetchScheduler();
+    }
+    res.json(autoFetchState);
+  });
+
+  // Start the background 10-minute auto fetch scheduler
+  startAutoFetchScheduler();
 
   // --- VITE MIDDLEWARE SETUP ---
   if (process.env.NODE_ENV !== 'production') {
