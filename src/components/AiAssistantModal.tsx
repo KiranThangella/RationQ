@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Sparkles, X, Send, Bot, User, ShieldCheck, RefreshCw, ArrowUpRight } from 'lucide-react';
+import { getApiUrl } from '../lib/apiConfig';
 
 interface AiAssistantModalProps {
   isOpen: boolean;
@@ -39,7 +40,7 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
     setLoading(true);
 
     try {
-      const res = await fetch('/api/ai/chat', {
+      const res = await fetch(getApiUrl('/api/ai/chat'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: textToSend }),

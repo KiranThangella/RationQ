@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { getApiUrl } from '../lib/apiConfig';
 import {
   SlidersHorizontal,
   MapPin,
@@ -51,7 +52,7 @@ export const EligibilityWizard: React.FC<EligibilityWizardProps> = ({
   const handleCalculate = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/eligibility/check', {
+      const res = await fetch(getApiUrl('/api/eligibility/check'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),

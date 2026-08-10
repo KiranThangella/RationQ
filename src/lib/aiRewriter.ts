@@ -2,6 +2,7 @@ import { Article } from '../types';
 import { saveArticleToStore, fetchAllArticlesFromStore } from './supabase';
 import { getSchemeImages } from './schemeImageLibrary';
 import { createSlug } from './slugUtils';
+import { getApiUrl } from './apiConfig';
 
 export interface StructuredArticleData {
   title: string;
@@ -33,7 +34,7 @@ export async function requestAiRewrite(payload: {
 
   // 1. Try Backend API first
   try {
-    const res = await fetch('/api/ai/rewrite', {
+    const res = await fetch(getApiUrl('/api/ai/rewrite'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -220,7 +221,7 @@ export async function safeSaveArticle(article: Partial<Article>): Promise<Articl
 
   // 1. Try backend POST API
   try {
-    const res = await fetch('/api/admin/articles', {
+    const res = await fetch(getApiUrl('/api/admin/articles'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(finalArticle),

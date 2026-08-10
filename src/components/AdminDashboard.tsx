@@ -22,6 +22,7 @@ import { Article, NewsPipelineItem } from '../types';
 import { requestAiRewrite, safeSaveArticle } from '../lib/aiRewriter';
 import { fetchPipelineFromStore, deletePipelineItemFromStore, updateArticleInSupabase, updateArticle } from '../lib/supabase';
 import { createSlug } from '../lib/slugUtils';
+import { getApiUrl } from '../lib/apiConfig';
 
 export function getArticleWordCount(art?: Partial<Article> | null): number {
   if (!art) return 0;
@@ -118,7 +119,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const handleExpandForAdsense = async (articleId: string, title: string) => {
     setExpandingArticleId(articleId);
     try {
-      const res = await fetch(`/api/admin/articles/${articleId}/expand-adsense`, {
+      const res = await fetch(getApiUrl(`/api/admin/articles/${articleId}/expand-adsense`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -194,7 +195,7 @@ Existing Guide: ${editingArticle.detailedGuideText || editingArticle.whatIsSchem
 
   const fetchAutoFetchStatus = async () => {
     try {
-      const res = await fetch('/api/admin/auto-fetch/status');
+      const res = await fetch(getApiUrl('/api/admin/auto-fetch/status'));
       if (res.ok) {
         const data = await res.json();
         setAutoFetchStatus(data);
@@ -214,7 +215,7 @@ Existing Guide: ${editingArticle.detailedGuideText || editingArticle.whatIsSchem
     setTriggeringAutoFetch(true);
     setAutoFetchMsg(null);
     try {
-      const res = await fetch('/api/admin/auto-fetch/trigger', { method: 'POST' });
+      const res = await fetch(getApiUrl('/api/admin/auto-fetch/trigger'), { method: 'POST' });
       const data = await res.json();
       setAutoFetchMsg(data.message);
       if (data.status) {
@@ -267,12 +268,12 @@ Existing Guide: ${editingArticle.detailedGuideText || editingArticle.whatIsSchem
   const [publishSuccessBanner, setPublishSuccessBanner] = useState<{ message: string; slug: string } | null>(null);
 
   useEffect(() => {
-    fetch('/api/admin/metrics')
+    fetch(getApiUrl('/api/admin/metrics'))
       .then(res => res.json())
       .then(data => setMetrics(data))
       .catch(() => {});
 
-    fetch('/api/admin/pipeline')
+    fetch(getApiUrl('/api/admin/pipeline'))
       .then(res => res.json())
       .then(data => setPipelineItems(data))
       .catch(() => {});
@@ -281,7 +282,7 @@ Existing Guide: ${editingArticle.detailedGuideText || editingArticle.whatIsSchem
   const handleCrawlSources = async () => {
     setFetchingCrawl(true);
     try {
-      const res = await fetch('/api/admin/fetch-pipeline', {
+      const res = await fetch(getApiUrl('/api/admin/fetch-pipeline'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sourcePortal: 'pib.gov.in' }),
@@ -301,7 +302,7 @@ Existing Guide: ${editingArticle.detailedGuideText || editingArticle.whatIsSchem
   const handlePublishArticle = async (id: string, slug?: string, title?: string) => {
     try {
       const existing = safeArticles.find(a => a.id === id || a.slug === id);
-      const res = await fetch(`/api/admin/articles/${id}/publish`, { method: 'POST' });
+      const res = await fetch(getApiUrl(`/api/admin/articles/${id}/publish`), { method: 'POST' });
       if (res.ok) {
         const data = await res.json();
         const updatedArt = data.article || data;

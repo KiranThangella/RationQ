@@ -18,6 +18,7 @@ import { LegalPagesView, LegalTab } from './components/LegalPagesView';
 import { Article, Category, State, Notification } from './types';
 import { CATEGORIES, INITIAL_ARTICLES, INITIAL_NOTIFICATIONS, STATES } from './data/mockDatabase';
 import { fetchAllArticlesFromStore } from './lib/supabase';
+import { getApiUrl } from './lib/apiConfig';
 import { Language, TRANSLATIONS } from './lib/translations';
 import { Sparkles, SlidersHorizontal, ShieldCheck, Search, Filter, Info, ChevronRight, HeartHandshake } from 'lucide-react';
 
@@ -99,7 +100,7 @@ export function App() {
 
       let serverArticles: Article[] = [];
       try {
-        const res = await fetch('/api/articles?status=all');
+        const res = await fetch(getApiUrl('/api/articles?status=all'));
         if (res.ok) {
           const contentType = res.headers.get('content-type');
           if (contentType && contentType.includes('application/json')) {
@@ -153,7 +154,7 @@ export function App() {
     }
 
     try {
-      const res = await fetch('/api/categories');
+      const res = await fetch(getApiUrl('/api/categories'));
       if (res.ok) {
         const contentType = res.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
@@ -164,7 +165,7 @@ export function App() {
     } catch (err) {}
 
     try {
-      const res = await fetch('/api/states');
+      const res = await fetch(getApiUrl('/api/states'));
       if (res.ok) {
         const contentType = res.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
@@ -175,7 +176,7 @@ export function App() {
     } catch (err) {}
 
     try {
-      const res = await fetch('/api/notifications');
+      const res = await fetch(getApiUrl('/api/notifications'));
       if (res.ok) {
         const contentType = res.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
