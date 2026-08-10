@@ -8,7 +8,7 @@ let supabaseAdminClient: SupabaseClient | null = null;
 
 export function getSupabaseClient(): SupabaseClient | null {
   if (!supabaseClient) {
-    const metaEnv = (import.meta as any)?.env || {};
+    const metaEnv = typeof import.meta !== 'undefined' ? (import.meta as any)?.env || {} : {};
     const url = process.env.SUPABASE_URL || metaEnv.VITE_SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || metaEnv.VITE_SUPABASE_SERVICE_ROLE_KEY || metaEnv.VITE_SUPABASE_ANON_KEY || metaEnv.VITE_SUPABASE_KEY;
 
@@ -28,7 +28,7 @@ export function getSupabaseClient(): SupabaseClient | null {
 
 export function getSupabaseAdminClient(): SupabaseClient | null {
   if (!supabaseAdminClient) {
-    const metaEnv = (import.meta as any)?.env || {};
+    const metaEnv = typeof import.meta !== 'undefined' ? (import.meta as any)?.env || {} : {};
     const url = process.env.SUPABASE_URL || metaEnv.VITE_SUPABASE_URL;
     const serviceKey =
       process.env.SUPABASE_SERVICE_ROLE_KEY ||

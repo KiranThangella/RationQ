@@ -29,8 +29,12 @@ import {
 } from './src/lib/autoFetcher.js';
 import { getSchemeImages } from './src/lib/schemeImageLibrary.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const currentFilename = typeof __filename !== 'undefined'
+  ? __filename
+  : (typeof import.meta !== 'undefined' && import.meta.url ? fileURLToPath(import.meta.url) : '');
+const currentDirname = typeof __dirname !== 'undefined'
+  ? __dirname
+  : (currentFilename ? path.dirname(currentFilename) : process.cwd());
 
 // Initial memory fallback references
 let notificationsDatabase = [...INITIAL_NOTIFICATIONS];
@@ -61,7 +65,7 @@ function getGeminiClient(): GoogleGenAI | null {
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
 
   app.use(express.json());
 
