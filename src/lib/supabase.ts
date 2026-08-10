@@ -2,6 +2,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Article, NewsPipelineItem } from '../types.js';
 import { INITIAL_ARTICLES, INITIAL_PIPELINE_ITEMS } from '../data/mockDatabase.js';
 import { createSlug } from './slugUtils.js';
+import { getApiUrl } from './apiConfig.js';
 
 let supabaseClient: SupabaseClient | null = null;
 let supabaseAdminClient: SupabaseClient | null = null;
@@ -281,7 +282,7 @@ export async function saveArticleToStore(article: Article): Promise<Article> {
   // Sync to Backend Server API if running fullstack
   if (typeof fetch !== 'undefined') {
     try {
-      await fetch('/api/admin/articles', {
+      await fetch(getApiUrl('/api/admin/articles'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(article),
