@@ -16,6 +16,8 @@ export interface StructuredArticleData {
   detailedGuideText: string;
   detailedGuideTextTelugu: string;
   readTimeMinutes: number;
+  imageSearchKeywords?: string;
+  visualSubject?: string;
   benefits: { id?: string; title: string; amount: string; type: string; description: string }[];
   whoCanApply: string[];
   whoCannotApply: string[];
@@ -80,6 +82,8 @@ Respond ONLY with valid JSON with keys:
   "detailedGuideText": string,
   "detailedGuideTextTelugu": string,
   "readTimeMinutes": number,
+  "imageSearchKeywords": string,
+  "visualSubject": string,
   "benefits": [{"title": string, "amount": string, "type": string, "description": string}],
   "whoCanApply": [string],
   "whoCannotApply": [string],
@@ -207,7 +211,8 @@ export async function safeSaveArticle(article: Partial<Article>): Promise<Articl
     importantWarnings: article.importantWarnings || ['Never share your OTP or bank PIN with anyone.'],
     source: article.source || { name: 'Official Portal', url: 'https://myscheme.gov.in', domain: 'myscheme.gov.in', type: 'pib', verifiedDate: new Date().toISOString().split('T')[0], verificationStatus: 'verified', department: 'Ministry' },
     officialWebsite: article.officialWebsite || 'https://myscheme.gov.in',
-    generatedImage: article.generatedImage || getSchemeImages(article.title || '', article.category || '')[0],
+    generatedImage: article.generatedImage || getSchemeImages(article.title || '', article.category || '', article.state || '', article.imageSearchKeywords || article.shortSummary || '').heroImage,
+    contentImages: article.contentImages && article.contentImages.length > 0 ? article.contentImages : getSchemeImages(article.title || '', article.category || '', article.state || '', article.imageSearchKeywords || article.shortSummary || '').contentImages,
     publishedAt: new Date().toISOString(),
     lastVerifiedAt: new Date().toISOString(),
     readTimeMinutes: article.readTimeMinutes || 4,

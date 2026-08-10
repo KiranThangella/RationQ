@@ -1,4 +1,5 @@
 import { Article, NewsPipelineItem } from '../types.js';
+import { getSchemeImages } from './schemeImageLibrary.js';
 import {
   fetchAllArticlesFromStore,
   saveArticleToStore,
@@ -567,7 +568,7 @@ export async function runAutoFetch(): Promise<{
           whoCannotApply: ['Non-resident aliens without Indian citizenship'],
           documents: [{ id: 'd1', name: 'Aadhaar Card', required: true, description: 'Digital identity verification' }],
           steps: [{ stepNumber: 1, title: 'Visit Portal', description: 'Log in using Aadhaar OTP on official portal.' }],
-          generatedImage: 'https://images.unsplash.com/photo-1532375810709-75b1da00537c?auto=format&fit=crop&fm=webp&q=75&w=800',
+          generatedImage: getSchemeImages(dynamicTitle, 'Government Schemes', 'Central Government', 'Official press update detailing streamlined online eligibility checking and instant grievance redressal portal.').heroImage,
           readTimeMinutes: 3,
         };
       } else {
@@ -624,7 +625,8 @@ export async function runAutoFetch(): Promise<{
         deadline: 'Ongoing / Active',
         statusCheckGuide: 'Visit official website, enter reference number or Aadhaar to verify approval status.',
         officialWebsite: candidateToUse.officialWebsite,
-        generatedImage: candidateToUse.generatedImage,
+        generatedImage: candidateToUse.generatedImage || getSchemeImages(candidateToUse.title, candidateToUse.category, candidateToUse.state, candidateToUse.shortSummary).heroImage,
+        contentImages: getSchemeImages(candidateToUse.title, candidateToUse.category, candidateToUse.state, candidateToUse.shortSummary).contentImages,
         publishedAt: nowStr,
         lastVerifiedAt: nowStr,
         readTimeMinutes: candidateToUse.readTimeMinutes,

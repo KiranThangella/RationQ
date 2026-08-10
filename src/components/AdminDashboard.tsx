@@ -24,6 +24,7 @@ import { requestAiRewrite, safeSaveArticle } from '../lib/aiRewriter';
 import { fetchPipelineFromStore, deletePipelineItemFromStore, updateArticleInSupabase, updateArticle, deleteArticleFromStore } from '../lib/supabase';
 import { createSlug } from '../lib/slugUtils';
 import { getApiUrl, safeFetchJson } from '../lib/apiConfig';
+import { getArticleWebpImage } from '../lib/schemeImageLibrary';
 
 export function getArticleWordCount(art?: Partial<Article> | null): number {
   if (!art) return 0;
@@ -50,27 +51,6 @@ export function getArticleWordCount(art?: Partial<Article> | null): number {
   const fullText = parts.filter(Boolean).join(' ');
   const words = fullText.trim().split(/\s+/).filter(w => w.length > 0);
   return words.length;
-}
-
-function getArticleWebpImage(title: string = '', category: string = ''): string {
-  const lower = (title + ' ' + category).toLowerCase();
-  if (lower.includes('kisan') || lower.includes('farmer') || lower.includes('rythu') || lower.includes('agri') || lower.includes('crop')) {
-    return 'https://images.unsplash.com/photo-1592982537447-7440770cbfc9?auto=format&fit=crop&fm=webp&q=75&w=800';
-  } else if (lower.includes('awas') || lower.includes('house') || lower.includes('housing') || lower.includes('home') || lower.includes('construction')) {
-    return 'https://images.unsplash.com/photo-1570129477492-45c003edd2be?auto=format&fit=crop&fm=webp&q=75&w=800';
-  } else if (lower.includes('scholarship') || lower.includes('student') || lower.includes('education') || lower.includes('school') || lower.includes('vidya') || lower.includes('fee')) {
-    return 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&fm=webp&q=75&w=800';
-  } else if (lower.includes('health') || lower.includes('aarogya') || lower.includes('hospital') || lower.includes('medical') || lower.includes('ayushman')) {
-    return 'https://images.unsplash.com/photo-1505751172876-fa1923c5c528?auto=format&fit=crop&fm=webp&q=75&w=800';
-  } else if (lower.includes('pension') || lower.includes('elderly') || lower.includes('senior') || lower.includes('cheyutha') || lower.includes('woman') || lower.includes('mahila')) {
-    return 'https://images.unsplash.com/photo-1532629345422-7515f3d16bb0?auto=format&fit=crop&fm=webp&q=75&w=800';
-  } else if (lower.includes('ration') || lower.includes('food') || lower.includes('rice') || lower.includes('grain')) {
-    return 'https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&fm=webp&q=75&w=800';
-  } else if (lower.includes('power') || lower.includes('electricity') || lower.includes('solar') || lower.includes('energy')) {
-    return 'https://images.unsplash.com/photo-1509391365360-2e959784a276?auto=format&fit=crop&fm=webp&q=75&w=800';
-  } else {
-    return 'https://images.unsplash.com/photo-1532375810709-75b1da00537c?auto=format&fit=crop&fm=webp&q=75&w=800';
-  }
 }
 
 interface AdminDashboardProps {

@@ -86,6 +86,8 @@ export interface Article {
   importantWarnings: string[];
   source: Source;
   generatedImage: string;
+  imageSearchKeywords?: string;
+  visualSubject?: string;
   contentImages?: ContentImage[];
   publishedAt: string;
   lastVerifiedAt: string;

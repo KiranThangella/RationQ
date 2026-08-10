@@ -818,6 +818,47 @@ Return pure JSON matching this expanded structure strictly:
     res.json(autoFetchState);
   });
 
+  // Sitemap Generator
+  app.get('/sitemap.xml', async (req: Request, res: Response) => {
+    try {
+      const allArticles = await fetchAllArticlesFromStore();
+      const publishedArticles = allArticles.filter(a => a.status === 'published');
+      
+      const baseUrl = 'https://rationq.in';
+      let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+      xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
+      
+      // Home page
+      xml += '  <url>\n';
+      xml += `    <loc>${baseUrl}/</loc>\n`;
+      xml += '    <changefreq>daily</changefreq>\n';
+      xml += '    <priority>1.0</priority>\n';
+      xml += '  </url>\n';
+      
+      // Dynamic article pages
+      publishedArticles.forEach(article => {
+        const urlSlug = article.slug || article.id;
+        // Basic escaping for XML
+        const escapedSlug = urlSlug.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+        xml += '  <url>\n';
+        xml += `    <loc>${baseUrl}/${escapedSlug}</loc>\n`;
+        const lastMod = article.lastVerifiedAt || article.publishedAt || new Date().toISOString();
+        xml += `    <lastmod>${lastMod.split('T')[0]}</lastmod>\n`;
+        xml += '    <changefreq>weekly</changefreq>\n';
+        xml += '    <priority>0.8</priority>\n';
+        xml += '  </url>\n';
+      });
+      
+      xml += '</urlset>';
+      
+      res.header('Content-Type', 'application/xml');
+      res.send(xml);
+    } catch (error) {
+      console.error('Error generating sitemap:', error);
+      res.status(500).send('Error generating sitemap');
+    }
+  });
+
   // Start the background 10-minute auto fetch scheduler
   startAutoFetchScheduler();
 
