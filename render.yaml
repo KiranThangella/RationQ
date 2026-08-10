@@ -1,0 +1,41 @@
+# Render Blueprint — deploy the RationQ backend (Express + Supabase + Gemini)
+# as a free Node.js web service.
+#
+# How to use:
+#   1. Push this repo to GitHub.
+#   2. On render.com: New -> Blueprint -> connect this repo. Render reads this
+#      file automatically and creates the service below.
+#   3. Fill in the env vars marked "sync: false" in the Render dashboard
+#      (Environment tab) — they are secrets and never committed to git.
+#   4. After the first deploy, copy the service URL (e.g.
+#      https://rationq-api.onrender.com) and set it as VITE_API_BASE_URL in
+#      your Cloudflare Pages project (see DEPLOY.md).
+#
+# Free tier notes: 750 hrs/month, no credit card required, but the service
+# sleeps after 15 min of no traffic (30-60s cold start on the next request).
+# Ping /api/health every few minutes with UptimeRobot (free) to avoid that.
+
+services:
+  - type: web
+    name: rationq-api
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: AI_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: CORS_ORIGIN
+        value: "*" # Tighten this to your exact Cloudflare Pages URL once you have it, e.g. https://rationq.pages.dev
