@@ -1,4 +1,5 @@
 import express, { Request, Response } from 'express';
+import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
@@ -68,15 +69,34 @@ async function startServer() {
   const PORT = Number(process.env.PORT) || 3000;
 
   // Robust CORS Middleware for Cloudflare / Render deployments & rationq.in
-  app.use((req, res, next) => {
-    const origin = req.headers.origin || 'https://rationq.in';
+  app.use(cors({
+    origin: (origin, callback) => {
+      // Dynamically reflect requesting origin or allow non-browser requests
+      callback(null, true);
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
+    allowedHeaders: [
+      'Origin', 'X-Requested-With', 'Content-Type', 'Accept',
+      'Authorization', 'Cache-Control', 'Pragma', 'Access-Control-Allow-Origin',
+      'Access-Control-Allow-Headers'
+    ],
+    exposedHeaders: ['*'],
+    maxAge: 86400,
+    optionsSuccessStatus: 200,
+  }));
+
+  app.options('*', cors());
+
+  // Fail-safe CORS Header Interceptor for all requests including static/404s
+  app.use((req: Request, res: Response, next: any) => {
+    const origin = req.headers.origin || req.get('Origin') || 'https://rationq.in';
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
     res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma');
-    res.setHeader('Access-Control-Max-Age', '86400');
     if (req.method === 'OPTIONS') {
-      return res.status(204).end();
+      return res.status(200).end();
     }
     next();
   });
