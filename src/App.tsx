@@ -18,7 +18,7 @@ import { LegalPagesView, LegalTab } from './components/LegalPagesView';
 import { Article, Category, State, Notification } from './types';
 import { CATEGORIES, INITIAL_ARTICLES, INITIAL_NOTIFICATIONS, STATES } from './data/mockDatabase';
 import { fetchAllArticlesFromStore } from './lib/supabase';
-import { getApiUrl } from './lib/apiConfig';
+import { getApiUrl, safeFetchJson } from './lib/apiConfig';
 import { Language, TRANSLATIONS } from './lib/translations';
 import { Sparkles, SlidersHorizontal, ShieldCheck, Search, Filter, Info, ChevronRight, HeartHandshake } from 'lucide-react';
 
@@ -99,21 +99,11 @@ export function App() {
       }
 
       let serverArticles: Article[] = [];
-      try {
-        const res = await fetch(getApiUrl('/api/articles?status=all'));
-        if (res.ok) {
-          const contentType = res.headers.get('content-type');
-          if (contentType && contentType.includes('application/json')) {
-            const data = await res.json();
-            if (Array.isArray(data) && data.length > 0) {
-              serverArticles = data;
-            } else if (data && Array.isArray(data.articles) && data.articles.length > 0) {
-              serverArticles = data.articles;
-            }
-          }
-        }
-      } catch (err) {
-        // Backend Express server not available
+      const apiData = await safeFetchJson<any>('/api/articles?status=all');
+      if (Array.isArray(apiData) && apiData.length > 0) {
+        serverArticles = apiData;
+      } else if (apiData && Array.isArray(apiData.articles) && apiData.articles.length > 0) {
+        serverArticles = apiData.articles;
       }
 
       // Merge localArticles and serverArticles by id/slug preserving newest updates
@@ -153,38 +143,20 @@ export function App() {
       console.warn('loadData notice:', err);
     }
 
-    try {
-      const res = await fetch(getApiUrl('/api/categories'));
-      if (res.ok) {
-        const contentType = res.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-          const data = await res.json();
-          if (Array.isArray(data) && data.length > 0) setCategories(data);
-        }
-      }
-    } catch (err) {}
+    const categoriesData = await safeFetchJson<Category[]>('/api/categories');
+    if (Array.isArray(categoriesData) && categoriesData.length > 0) {
+      setCategories(categoriesData);
+    }
 
-    try {
-      const res = await fetch(getApiUrl('/api/states'));
-      if (res.ok) {
-        const contentType = res.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-          const data = await res.json();
-          if (Array.isArray(data) && data.length > 0) setStates(data);
-        }
-      }
-    } catch (err) {}
+    const statesData = await safeFetchJson<State[]>('/api/states');
+    if (Array.isArray(statesData) && statesData.length > 0) {
+      setStates(statesData);
+    }
 
-    try {
-      const res = await fetch(getApiUrl('/api/notifications'));
-      if (res.ok) {
-        const contentType = res.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-          const data = await res.json();
-          if (Array.isArray(data) && data.length > 0) setNotifications(data);
-        }
-      }
-    } catch (err) {}
+    const notificationsData = await safeFetchJson<Notification[]>('/api/notifications');
+    if (Array.isArray(notificationsData) && notificationsData.length > 0) {
+      setNotifications(notificationsData);
+    }
   };
 
   useEffect(() => {

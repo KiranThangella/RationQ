@@ -67,12 +67,20 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
+  // Robust CORS Middleware for Cloudflare / Render deployments
   app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    const origin = req.headers.origin;
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    } else {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+    }
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+    res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma');
+    res.setHeader('Access-Control-Max-Age', '86400');
     if (req.method === 'OPTIONS') {
-      return res.sendStatus(200);
+      return res.status(204).end();
     }
     next();
   });
@@ -804,6 +812,19 @@ Return pure JSON matching this expanded structure strictly:
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
+
+  // Global Error Handler with CORS headers
+  app.use((err: any, req: Request, res: Response, _next: any) => {
+    console.error('Unhandled server error:', err);
+    const origin = req.headers.origin;
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    } else {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+    }
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.status(500).json({ error: 'Internal Server Error', message: err?.message || 'Unknown error' });
+  });
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[RationQ Server] Running on http://0.0.0.0:${PORT}`);
