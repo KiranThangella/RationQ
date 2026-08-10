@@ -347,8 +347,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <Home className="w-5 h-5" />
                   </div>
                   <div>
-                    <div className="text-base font-extrabold leading-snug">{lang === 'te' ? '🏠 హోమ్ పేజీ (Home)' : '🏠 Home'}</div>
-                    <div className={`text-xs ${currentView === 'home' ? 'text-emerald-100' : 'text-slate-500'}`}>అన్ని సంక్షేమ పథకాలు & సమాచారం</div>
+                    <div className="text-base font-extrabold leading-snug">{lang === 'te' ? '🏠 హోమ్ పేజీ (Home)' : lang === 'hi' ? '🏠 होम पेज (Home)' : '🏠 Home'}</div>
+                    <div className={`text-xs ${currentView === 'home' ? 'text-emerald-100' : 'text-slate-500'}`}>{lang === 'te' ? 'అన్ని సంక్షేమ పథకాలు & సమాచారం' : lang === 'hi' ? 'सभी कल्याणकारी योजनाएं और जानकारी' : 'All Welfare Schemes & Information'}</div>
                   </div>
                 </div>
                 <ChevronDown className="-rotate-90 w-5 h-5 text-current opacity-80" />
@@ -368,8 +368,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <CheckCircle2 className="w-5 h-5" />
                   </div>
                   <div>
-                    <div className="text-base font-extrabold leading-snug">{lang === 'te' ? '⚡ తాజా పథకాలు (Latest Schemes)' : '⚡ Latest Schemes'}</div>
-                    <div className={`text-xs ${currentView === 'latest' ? 'text-emerald-100' : 'text-slate-500'}`}>కొత్తగా విడుదలైన నోటిఫికేషన్‌లు</div>
+                    <div className="text-base font-extrabold leading-snug">{lang === 'te' ? '⚡ తాజా పథకాలు (Latest Schemes)' : lang === 'hi' ? '⚡ नवीनतम योजनाएं (Latest Schemes)' : '⚡ Latest Schemes'}</div>
+                    <div className={`text-xs ${currentView === 'latest' ? 'text-emerald-100' : 'text-slate-500'}`}>{lang === 'te' ? 'కొత్తగా విడుదలైన నోటిఫికేషన్‌లు' : lang === 'hi' ? 'हाल ही में जारी सूचनाएं' : 'Recently Released Notifications'}</div>
                   </div>
                 </div>
                 <ChevronDown className="-rotate-90 w-5 h-5 text-current opacity-80" />
@@ -389,8 +389,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <Grid className="w-5 h-5" />
                   </div>
                   <div>
-                    <div className="text-base font-extrabold leading-snug">{lang === 'te' ? '📂 కేటగిరీలు (Categories)' : '📂 Categories'}</div>
-                    <div className={`text-xs ${currentView === 'categories' ? 'text-emerald-100' : 'text-slate-500'}`}>రైతు, మహిళ, విద్యార్థి & పెన్షన్ పథకాలు</div>
+                    <div className="text-base font-extrabold leading-snug">{lang === 'te' ? '📂 కేటగిరీలు (Categories)' : lang === 'hi' ? '📂 श्रेणियां (Categories)' : '📂 Categories'}</div>
+                    <div className={`text-xs ${currentView === 'categories' ? 'text-emerald-100' : 'text-slate-500'}`}>{lang === 'te' ? 'రైతు, మహిళ, విద్యార్థి & పెన్షన్ పథకాలు' : lang === 'hi' ? 'किसान, महिला, छात्र एवं पेंशन योजनाएं' : 'Farmer, Women, Student & Pension Schemes'}</div>
                   </div>
                 </div>
                 <ChevronDown className="-rotate-90 w-5 h-5 text-current opacity-80" />
@@ -410,7 +410,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <MapPin className="w-5 h-5" />
                   </div>
                   <div>
-                    <div className="text-base font-extrabold leading-snug">{lang === 'te' ? '🗺️ రాష్ట్రాలు & కేంద్ర పథకాలు (States & Central)' : '🗺️ States & Central'}</div>
+                    <div className="text-base font-extrabold leading-snug">{lang === 'te' ? '🗺️ రాష్ట్రాలు & కేంద్ర పథకాలు (States & Central)' : lang === 'hi' ? '🗺️ राज्य और केंद्रीय योजनाएं (States & Central)' : '🗺️ States & Central'}</div>
                     <div className={`text-xs ${currentView === 'states' ? 'text-emerald-100' : 'text-slate-500'}`}>AP, Telangana, Central Government</div>
                   </div>
                 </div>
@@ -431,8 +431,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <SlidersHorizontal className="w-5 h-5" />
                   </div>
                   <div>
-                    <div className="text-base font-extrabold leading-snug">{lang === 'te' ? '🎯 అర్హత పరీక్ష (Eligibility Checker)' : '🎯 Eligibility Checker'}</div>
-                    <div className={`text-xs ${currentView === 'eligibility' ? 'text-emerald-100' : 'text-slate-500'}`}>మీ కుటుంబ అర్హతను తనిఖీ చేయండి</div>
+                    <div className="text-base font-extrabold leading-snug">{lang === 'te' ? '🎯 అర్హత పరీక్ష (Eligibility Checker)' : lang === 'hi' ? '🎯 पात्रता जांच (Eligibility Checker)' : '🎯 Eligibility Checker'}</div>
+                    <div className={`text-xs ${currentView === 'eligibility' ? 'text-emerald-100' : 'text-slate-500'}`}>{lang === 'te' ? 'మీ కుటుంబ అర్హతను తనిఖీ చేయండి' : lang === 'hi' ? 'अपने परिवार की पात्रता की जांच करें' : 'Check Your Family Eligibility'}</div>
                   </div>
                 </div>
                 <ChevronDown className="-rotate-90 w-5 h-5 text-current opacity-80" />
@@ -463,6 +463,22 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Bottom Actions */}
             <div className="grid grid-cols-2 gap-3 pt-2">
               <button
+                onClick={() => {
+                  openNotifications();
+                  setMobileMenuOpen(false);
+                }}
+                className="p-3.5 rounded-2xl bg-white hover:bg-slate-100 text-slate-900 font-bold text-xs flex items-center justify-between border border-slate-200 shadow-xs"
+              >
+                <div className="flex items-center gap-2">
+                  <Bell className="w-4 h-4 text-emerald-700" />
+                  <span>{t.alerts || 'Alerts'}</span>
+                </div>
+                <span className="bg-amber-500 text-white font-black text-xs px-2.5 py-0.5 rounded-full">
+                  {unreadNotifCount}
+                </span>
+              </button>
+
+              <button
                 onClick={() => handleNavClick('saved')}
                 className="p-3.5 rounded-2xl bg-white hover:bg-slate-100 text-slate-900 font-bold text-xs flex items-center justify-between border border-slate-200 shadow-xs"
               >
@@ -474,10 +490,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                   {savedCount}
                 </span>
               </button>
+            </div>
 
+            <div className="pt-2">
               <button
                 onClick={() => handleNavClick('admin')}
-                className="p-3.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-between border border-slate-800 shadow-xs"
+                className="w-full p-3.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-between border border-slate-800 shadow-xs"
               >
                 <div className="flex items-center gap-2">
                   <LayoutDashboard className="w-4 h-4 text-emerald-400" />
@@ -572,9 +590,18 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         <button
           onClick={() => handleNavClick(isAdminAuthenticated ? 'admin' : 'saved')}
-          className={`flex flex-col items-center gap-0.5 p-1 text-[10px] font-semibold transition-colors ${currentView === 'admin' || currentView === 'saved' ? 'text-emerald-700 font-extrabold' : 'text-slate-500 hover:text-slate-800'}`}
+          className={`relative flex flex-col items-center gap-0.5 p-1 text-[10px] font-semibold transition-colors ${currentView === 'admin' || currentView === 'saved' ? 'text-emerald-700 font-extrabold' : 'text-slate-500 hover:text-slate-800'}`}
         >
-          {isAdminAuthenticated ? <LayoutDashboard className="w-5 h-5 text-emerald-700" /> : <Bookmark className="w-5 h-5" />}
+          {isAdminAuthenticated ? <LayoutDashboard className="w-5 h-5 text-emerald-700" /> : (
+            <div className="relative">
+              <Bookmark className="w-5 h-5" />
+              {savedCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-emerald-600 text-white text-[8px] font-extrabold w-3.5 h-3.5 rounded-full flex items-center justify-center">
+                  {savedCount}
+                </span>
+              )}
+            </div>
+          )}
           <span>{isAdminAuthenticated ? 'Admin' : 'Saved'}</span>
         </button>
       </div>

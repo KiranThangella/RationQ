@@ -34,7 +34,7 @@ export const StateExplorer: React.FC<StateExplorerProps> = ({
         </div>
 
         {/* State Filter Chips */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-4 scrollbar-none mb-6">
+        <div className="flex flex-wrap items-center gap-2 pb-4 mb-6">
           <button
             onClick={() => onSelectState(null)}
             className={`px-4 py-2 rounded-full text-xs font-bold shrink-0 transition-all ${

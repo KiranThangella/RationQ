@@ -20,8 +20,8 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({
   featured = false,
   lang = 'te',
 }) => {
-  const displayTitle = (lang === 'te' && article.titleTelugu) ? article.titleTelugu : article.title;
-  const displaySummary = (lang === 'te' && article.shortSummaryTelugu) ? article.shortSummaryTelugu : article.shortSummary;
+  const displayTitle = (lang === 'te' && article.titleTelugu) ? article.titleTelugu : (lang === 'hi' && (article as any).titleHindi) ? (article as any).titleHindi : article.title;
+  const displaySummary = (lang === 'te' && article.shortSummaryTelugu) ? article.shortSummaryTelugu : (lang === 'hi' && (article as any).shortSummaryHindi) ? (article as any).shortSummaryHindi : article.shortSummary;
   return (
     <div
       onClick={() => onSelect(article)}

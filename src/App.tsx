@@ -226,21 +226,41 @@ export function App() {
 
     const syncArticleFromUrl = () => {
       const pathname = window.location.pathname;
-      // Do not navigate away if the user is currently on the admin dashboard or path is /admin
-      if (currentView === 'admin' || pathname.toLowerCase() === '/admin') {
+      const lowerPath = pathname.toLowerCase();
+      
+      // Known routes map
+      const staticRoutes: Record<string, string> = {
+        '/': 'home',
+        '/latest': 'latest',
+        '/categories': 'categories',
+        '/category': 'categories',
+        '/states': 'states',
+        '/state': 'states',
+        '/eligibility': 'eligibility',
+        '/checker': 'eligibility',
+        '/saved': 'saved',
+        '/admin': 'admin',
+        '/contact': 'legal-contact',
+        '/about': 'legal-about'
+      };
+
+      if (staticRoutes[lowerPath]) {
+        setCurrentView(staticRoutes[lowerPath]);
         return;
+      }
+      
+      if (lowerPath.startsWith('/legal-')) {
+         setCurrentView(lowerPath.slice(1));
+         return;
       }
 
       const params = new URLSearchParams(window.location.search);
-
       let extractedSlug = '';
 
-      // 1. Check path e.g. /article/pm-kisan-19th-installment-release-guidelines or /pm-kisan-19th-installment-release-guidelines
-      if (pathname && pathname !== '/' && !['/admin', '/category', '/saved', '/notifications', '/index.html'].includes(pathname.toLowerCase())) {
+      if (pathname && pathname !== '/' && !staticRoutes[lowerPath] && !pathname.includes('index.html')) {
         extractedSlug = pathname.replace(/^\/article\//i, '').replace(/^\//, '');
       }
 
-      // 2. Fallback for legacy query params (?article= or ?artical= or ?slug=)
       if (!extractedSlug) {
         extractedSlug = params.get('article') || params.get('artical') || params.get('slug') || window.location.hash.replace('#', '');
       }
@@ -252,12 +272,13 @@ export function App() {
           setSelectedArticle(found);
           setCurrentView('article-detail');
 
-          // Clean up legacy ?article= or ?artical= parameter in address bar to /article/slug
           if (window.location.search.includes('article=') || window.location.search.includes('artical=')) {
             try {
               window.history.replaceState({ slug: found.slug }, '', `/article/${found.slug || found.id}`);
             } catch (e) {}
           }
+        } else {
+          setCurrentView('home');
         }
       }
     };
@@ -270,7 +291,7 @@ export function App() {
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [articles, currentView]);
+  }, [articles]);
 
   const handleSearchSubmit = (query: string) => {
     setSearchQuery(query);
@@ -280,6 +301,16 @@ export function App() {
 
   // Filtered Articles Logic for public UI screens
   const publishedArticles = deduplicateArticles(safeArticles.filter((art) => art.status === 'published'));
+
+  const computedCategories = safeCategories.map(cat => ({
+    ...cat,
+    count: publishedArticles.filter(art => art.category.toLowerCase() === cat.name.toLowerCase() || art.category === cat.id).length
+  }));
+
+  const computedStates = safeStates.map(st => ({
+    ...st,
+    popularSchemesCount: publishedArticles.filter(art => art.state.toLowerCase() === st.name.toLowerCase() || art.state === st.id).length
+  }));
 
   const filteredArticles = deduplicateArticles(
     publishedArticles.filter((art) => {
@@ -404,12 +435,19 @@ export function App() {
             }
           } else {
             setCurrentView(view);
+            try {
+              if (view === 'home') {
+                 window.history.pushState({}, '', '/');
+              } else if (['latest', 'categories', 'states', 'eligibility', 'saved'].includes(view)) {
+                 window.history.pushState({}, '', `/${view}`);
+              }
+            } catch (e) {}
           }
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
         lang={lang}
         setLang={setLang}
-        savedCount={savedArticleIds.length}
+        savedCount={savedArticles.length}
         unreadNotifCount={unreadNotifCount}
         openNotifications={() => setNotificationsOpen(true)}
         openAiAssistant={() => setAiAssistantOpen(true)}
@@ -441,7 +479,7 @@ export function App() {
 
           {/* Interactive Categories Sector Grid */}
           <CategoryGrid
-            categories={categories}
+            categories={computedCategories}
             selectedCategory={selectedCategory}
             onSelectCategory={(catName) => {
               setSelectedCategory(selectedCategory === catName ? null : catName);
@@ -470,7 +508,7 @@ export function App() {
 
           {/* State & Central Jurisdiction Explorer */}
           <StateExplorer
-            states={states}
+            states={computedStates}
             selectedState={selectedState}
             onSelectState={(stName) => {
               setSelectedState(stName);
@@ -501,7 +539,7 @@ export function App() {
                 }}
                 className="text-xs font-bold text-emerald-800 hover:text-emerald-950 flex items-center gap-1"
               >
-                <span>View All Schemes ({articles.length})</span>
+                <span>View All Schemes ({publishedArticles.length})</span>
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
@@ -663,7 +701,7 @@ export function App() {
       {currentView === 'categories' && (
         <main className="flex-1 py-8">
           <CategoryGrid
-            categories={categories}
+            categories={computedCategories}
             selectedCategory={selectedCategory}
             onSelectCategory={(catName) => {
               setSelectedCategory(selectedCategory === catName ? null : catName);
@@ -677,7 +715,7 @@ export function App() {
       {currentView === 'states' && (
         <main className="flex-1 py-8">
           <StateExplorer
-            states={states}
+            states={computedStates}
             selectedState={selectedState}
             onSelectState={(stName) => {
               setSelectedState(stName);
@@ -691,7 +729,7 @@ export function App() {
       {currentView === 'eligibility' && (
         <main className="flex-1 py-8">
           <EligibilityWizard
-            states={states}
+            states={computedStates}
             onSelectArticle={handleSelectArticleBySlug}
           />
         </main>
@@ -783,6 +821,19 @@ export function App() {
         notifications={notifications}
         onMarkAllRead={() => {
           setNotifications(notifications.map((n) => ({ ...n, read: true })));
+          fetch('/api/notifications/mark-read', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ notificationId: 'all' })
+          }).catch(() => {});
+        }}
+        onMarkRead={(id) => {
+          setNotifications(notifications.map((n) => n.id === id ? { ...n, read: true } : n));
+          fetch('/api/notifications/mark-read', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ notificationId: id })
+          }).catch(() => {});
         }}
         onSelectLink={() => {
           setCurrentView('latest');

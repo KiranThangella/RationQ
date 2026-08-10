@@ -7,6 +7,7 @@ interface NotificationsDrawerProps {
   onClose: () => void;
   notifications: Notification[];
   onMarkAllRead: () => void;
+  onMarkRead: (id: string) => void;
   onSelectLink: (linkUrl?: string) => void;
 }
 
@@ -15,6 +16,7 @@ export const NotificationsDrawer: React.FC<NotificationsDrawerProps> = ({
   onClose,
   notifications,
   onMarkAllRead,
+  onMarkRead,
   onSelectLink,
 }) => {
   if (!isOpen) return null;
@@ -54,6 +56,7 @@ export const NotificationsDrawer: React.FC<NotificationsDrawerProps> = ({
               <div
                 key={n.id}
                 onClick={() => {
+                  onMarkRead(n.id);
                   onSelectLink(n.linkUrl);
                   onClose();
                 }}

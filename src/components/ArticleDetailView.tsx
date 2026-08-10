@@ -82,10 +82,11 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({
   };
 
   const isTelugu = activeLang === 'te';
-  const displayTitle = (isTelugu && article.titleTelugu) ? article.titleTelugu : article.title;
-  const displaySummary = (isTelugu && article.shortSummaryTelugu) ? article.shortSummaryTelugu : article.shortSummary;
-  const displayWhatIsScheme = (isTelugu && article.whatIsSchemeTelugu) ? article.whatIsSchemeTelugu : article.whatIsScheme;
-  const displayWhatHappened = (isTelugu && article.whatHappenedTelugu) ? article.whatHappenedTelugu : article.whatHappened;
+  const isHindi = activeLang === 'hi';
+  const displayTitle = (isTelugu && article.titleTelugu) ? article.titleTelugu : (isHindi && (article as any).titleHindi) ? (article as any).titleHindi : article.title;
+  const displaySummary = (isTelugu && article.shortSummaryTelugu) ? article.shortSummaryTelugu : (isHindi && (article as any).shortSummaryHindi) ? (article as any).shortSummaryHindi : article.shortSummary;
+  const displayWhatIsScheme = (isTelugu && article.whatIsSchemeTelugu) ? article.whatIsSchemeTelugu : (isHindi && (article as any).whatIsSchemeHindi) ? (article as any).whatIsSchemeHindi : article.whatIsScheme;
+  const displayWhatHappened = (isTelugu && article.whatHappenedTelugu) ? article.whatHappenedTelugu : (isHindi && (article as any).whatHappenedHindi) ? (article as any).whatHappenedHindi : article.whatHappened;
 
   return (
     <article className="min-h-screen bg-slate-50/50 pb-20 pt-6 animate-in fade-in duration-200">
@@ -194,13 +195,13 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({
               </h1>
 
               <div className="flex flex-wrap items-center gap-4 text-xs text-slate-300 pt-1 font-medium">
-                <span>{isTelugu ? 'ప్రచురించబడింది' : 'Published'}: {new Date(article.publishedAt).toLocaleDateString(isTelugu ? 'te-IN' : 'en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                <span>{isTelugu ? 'ప్రచురించబడింది' : isHindi ? 'प्रकाशित' : 'Published'}: {new Date(article.publishedAt).toLocaleDateString(isTelugu ? 'te-IN' : isHindi ? 'hi-IN' : 'en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                 <span>•</span>
-                <span>{isTelugu ? 'ధృవీకరించబడింది' : 'Verified'}: {new Date(article.lastVerifiedAt).toLocaleDateString(isTelugu ? 'te-IN' : 'en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                <span>{isTelugu ? 'ధృవీకరించబడింది' : isHindi ? 'सत्यापित' : 'Verified'}: {new Date(article.lastVerifiedAt).toLocaleDateString(isTelugu ? 'te-IN' : isHindi ? 'hi-IN' : 'en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                 <span>•</span>
                 <span className="flex items-center gap-1">
                   <Clock className="w-3.5 h-3.5 text-emerald-400" />
-                  {article.readTimeMinutes} {isTelugu ? 'నిమిషాల చదువు' : 'min read'}
+                  {article.readTimeMinutes} {isTelugu ? 'నిమిషాల చదువు' : isHindi ? 'मिनट' : 'min read'}
                 </span>
               </div>
             </div>
@@ -218,14 +219,14 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-bold text-emerald-950">
-                      {isTelugu ? 'అధికారిక ప్రభుత్వ మూలం ధృవీకరించబడింది' : 'Official Government Source Verified'}
+                      {isTelugu ? 'అధికారిక ప్రభుత్వ మూలం ధృవీకరించబడింది' : isHindi ? 'आधिकारिक सरकारी स्रोत सत्यापित' : 'Official Government Source Verified'}
                     </span>
                     <span className="bg-emerald-200 text-emerald-900 text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
                       Pass
                     </span>
                   </div>
                   <p className="text-xs text-emerald-800 font-medium">
-                    {isTelugu ? 'శాఖ నుండి సేకరించబడింది:' : 'Verified from'} {article.source.department} ({article.source.domain})
+                    {isTelugu ? 'శాఖ నుండి సేకరించబడింది:' : isHindi ? 'से सत्यापित:' : 'Verified from'} {article.source.department} ({article.source.domain})
                   </p>
                 </div>
               </div>
@@ -236,7 +237,7 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({
                 rel="noopener noreferrer"
                 className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-md transition-colors flex items-center justify-center gap-1.5 shrink-0"
               >
-                <span>{isTelugu ? 'అధికారిక పోర్టల్‌లో దరఖాస్తు చేయండి' : 'Apply on Official Portal'}</span>
+                <span>{isTelugu ? 'అధికారిక పోర్టల్‌లో దరఖాస్తు చేయండి' : isHindi ? 'आधिकारिक पोर्टल पर आवेदन करें' : 'Apply on Official Portal'}</span>
                 <ExternalLink className="w-3.5 h-3.5" />
               </a>
             </div>
@@ -252,7 +253,7 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({
             <section className="space-y-3">
               <h2 className="text-lg sm:text-xl font-bold font-serif text-slate-900 flex items-center gap-2 border-b border-slate-200 pb-2">
                 <Sparkles className="w-5 h-5 text-emerald-600" />
-                {isTelugu ? 'ఏమి జరిగింది? (ముఖ్య సమాచారం)' : 'What Happened?'}
+                {isTelugu ? 'ఏమి జరిగింది? (ముఖ్య సమాచారం)' : isHindi ? 'क्या अपडेट है?' : 'What Happened?'}
               </h2>
               <p className="text-slate-700 text-sm sm:text-base leading-relaxed">
                 {displayWhatHappened}
@@ -263,7 +264,7 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({
             <section className="space-y-3">
               <h2 className="text-lg sm:text-xl font-bold font-serif text-slate-900 flex items-center gap-2 border-b border-slate-200 pb-2">
                 <Building2 className="w-5 h-5 text-emerald-600" />
-                {isTelugu ? 'ఈ పథకం ఏమిటి? (పూర్తి వివరాలు)' : 'What Is This Scheme?'}
+                {isTelugu ? 'ఈ పథకం ఏమిటి? (పూర్తి వివరాలు)' : isHindi ? 'यह योजना क्या है?' : 'What Is This Scheme?'}
               </h2>
               <p className="text-slate-700 text-sm sm:text-base leading-relaxed">
                 {displayWhatIsScheme}
@@ -274,7 +275,7 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({
             <section className="space-y-4">
               <h2 className="text-lg sm:text-xl font-bold font-serif text-slate-900 flex items-center gap-2 border-b border-slate-200 pb-2">
                 <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                {isTelugu ? 'మీకు లభించే లబ్ధి / ప్రయోజనాలు' : 'What Benefit Will You Get?'}
+                {isTelugu ? 'మీకు లభించే లబ్ధి / ప్రయోజనాలు' : isHindi ? 'आपको क्या लाभ मिलेगा?' : 'What Benefit Will You Get?'}
               </h2>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -313,7 +314,7 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({
               <section className="p-5 rounded-2xl bg-emerald-50/40 border border-emerald-200/80 space-y-3">
                 <h2 className="text-base font-bold text-slate-900 flex items-center gap-2 border-b border-emerald-200 pb-2">
                   <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                  {isTelugu ? 'ఎవరు దరఖాస్తు చేసుకోవచ్చు? (అర్హతలు)' : 'Who Can Apply?'}
+                  {isTelugu ? 'ఎవరు దరఖాస్తు చేసుకోవచ్చు? (అర్హతలు)' : isHindi ? 'कौन आवेदन कर सकता है?' : 'Who Can Apply?'}
                 </h2>
                 <ul className="space-y-2.5 text-xs sm:text-sm text-slate-700">
                   {article.whoCanApply.map((item, idx) => (
@@ -329,7 +330,7 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({
               <section className="p-5 rounded-2xl bg-rose-50/40 border border-rose-200/80 space-y-3">
                 <h2 className="text-base font-bold text-slate-900 flex items-center gap-2 border-b border-rose-200 pb-2">
                   <XCircle className="w-5 h-5 text-rose-600" />
-                  {isTelugu ? 'ఎవరు అర్హులు కారు? (అనర్హతలు)' : 'Who Cannot Apply?'}
+                  {isTelugu ? 'ఎవరు అర్హులు కారు? (అనర్హతలు)' : isHindi ? 'कौन आवेदन नहीं कर सकता?' : 'Who Cannot Apply?'}
                 </h2>
                 <ul className="space-y-2.5 text-xs sm:text-sm text-slate-700">
                   {article.whoCannotApply.map((item, idx) => (
@@ -347,7 +348,7 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({
             <section className="space-y-4">
               <h2 className="text-lg sm:text-xl font-bold font-serif text-slate-900 flex items-center gap-2 border-b border-slate-200 pb-2">
                 <FileText className="w-5 h-5 text-emerald-600" />
-                {isTelugu ? 'కావలసిన పత్రాల జాబితా (డాక్యుమెంట్లు)' : 'Documents Required Checklist'}
+                {isTelugu ? 'కావలసిన పత్రాల జాబితా (డాక్యుమెంట్లు)' : isHindi ? 'आवश्यक दस्तावेज' : 'Documents Required Checklist'}
               </h2>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -440,11 +441,11 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({
               <section className="space-y-6 bg-slate-50/80 p-6 rounded-2xl border border-slate-200">
                 <h2 className="text-lg sm:text-xl font-bold font-serif text-slate-900 flex items-center gap-2 border-b border-slate-200 pb-2">
                   <FileText className="w-5 h-5 text-emerald-600" />
-                  {isTelugu ? 'వివరమైన మార్గదర్శి & పూర్తి సమాచారం' : 'Comprehensive Scheme Guide & Analysis'}
+                  {isTelugu ? 'వివరమైన మార్గదర్శి & పూర్తి సమాచారం' : isHindi ? 'व्यापक योजना गाइड' : 'Comprehensive Scheme Guide & Analysis'}
                 </h2>
                 
                 <div className="text-slate-700 text-sm sm:text-base leading-relaxed whitespace-pre-line space-y-3">
-                  {(isTelugu && article.detailedGuideTextTelugu) ? article.detailedGuideTextTelugu : article.detailedGuideText}
+                  {(isTelugu && article.detailedGuideTextTelugu) ? article.detailedGuideTextTelugu : (isHindi && (article as any).detailedGuideTextHindi) ? (article as any).detailedGuideTextHindi : article.detailedGuideText}
                 </div>
 
                 {/* Content-based WebP Images */}
@@ -459,7 +460,7 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({
                     <div className="pt-4 border-t border-slate-200/80 space-y-4">
                       <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
                         <Globe className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>{isTelugu ? 'పథకం ఆన్‌లైన్ దరఖాస్తు & పత్రాల ప్రక్రియ దృశ్యాలు' : 'Official Portal & Document Process Visuals'}</span>
+                        <span>{isTelugu ? 'పథకం ఆన్‌లైన్ దరఖాస్తు & పత్రాల ప్రక్రియ దృశ్యాలు' : isHindi ? 'आधिकारिक पोर्टल दृश्य' : 'Official Portal & Document Process Visuals'}</span>
                       </h3>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -475,7 +476,7 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({
                             </div>
                             <div className="p-3 bg-slate-50 border-t border-slate-100">
                               <p className="text-xs font-semibold text-slate-800 leading-snug">
-                                {(isTelugu && img.captionTelugu) ? img.captionTelugu : img.caption}
+                                {(isTelugu && img.captionTelugu) ? img.captionTelugu : (isHindi && (img as any).captionHindi) ? (img as any).captionHindi : img.caption}
                               </p>
                             </div>
                           </div>
@@ -492,7 +493,7 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({
               <section className="space-y-4">
                 <h2 className="text-lg sm:text-xl font-bold font-serif text-slate-900 flex items-center gap-2 border-b border-slate-200 pb-2">
                   <HelpCircle className="w-5 h-5 text-emerald-600" />
-                  {isTelugu ? 'తరచుగా అడిగే ప్రశ్నలు & సమాధానాలు (FAQs)' : 'Frequently Asked Questions (FAQs)'}
+                  {isTelugu ? 'తరచుగా అడిగే ప్రశ్నలు & సమాధానాలు (FAQs)' : isHindi ? 'अक्सर पूछे जाने वाले प्रश्न' : 'Frequently Asked Questions (FAQs)'}
                 </h2>
 
                 <div className="space-y-3">
@@ -500,10 +501,10 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({
                     <div key={idx} className="p-4 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-1.5">
                       <h3 className="font-bold text-slate-900 text-sm sm:text-base flex items-start gap-2">
                         <span className="text-emerald-700 font-extrabold">Q:</span>
-                        <span>{(isTelugu && faq.questionTelugu) ? faq.questionTelugu : faq.question}</span>
+                        <span>{(isTelugu && faq.questionTelugu) ? faq.questionTelugu : (isHindi && (faq as any).questionHindi) ? (faq as any).questionHindi : faq.question}</span>
                       </h3>
                       <p className="text-slate-600 text-xs sm:text-sm pl-6 leading-relaxed">
-                        {(isTelugu && faq.answerTelugu) ? faq.answerTelugu : faq.answer}
+                        {(isTelugu && faq.answerTelugu) ? faq.answerTelugu : (isHindi && (faq as any).answerHindi) ? (faq as any).answerHindi : faq.answer}
                       </p>
                     </div>
                   ))}
@@ -602,25 +603,25 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({
               <div>
                 <div className="inline-flex items-center gap-1.5 bg-emerald-100 text-emerald-800 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase mb-1">
                   <Grid className="w-3 h-3 text-emerald-700" />
-                  <span>{isTelugu ? 'మరిన్ని సలహా పథకాలు' : 'More Welfare Recommendations'}</span>
+                  <span>{isTelugu ? 'మరిన్ని సలహా పథకాలు' : isHindi ? 'अधिक अनुशंसाएं' : 'More Welfare Recommendations'}</span>
                 </div>
                 <h2 className="text-xl sm:text-2xl font-bold font-serif text-slate-900">
                   {isTelugu
                     ? `${article.category} కేటగిరీకి సంబంధిత ఇతర పథకాలు`
-                    : `Related Schemes in ${article.category}`}
+                    : isHindi ? `${article.category} में संबंधित योजनाएं` : `Related Schemes in ${article.category}`}
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
                   {isTelugu
                     ? 'మీ కుటుంబ అర్హతకు ఉపయోగపడే మరిన్ని సంక్షేమ కార్యక్రమాలు చూడండి'
-                    : 'Explore additional eligible welfare schemes for citizens and families'}
+                    : isHindi ? 'नागरिकों और परिवारों के लिए अतिरिक्त कल्याणकारी योजनाएं खोजें' : 'Explore additional eligible welfare schemes for citizens and families'}
                 </p>
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {relatedSchemes.map((relScheme) => {
-                const relTitle = (isTelugu && relScheme.titleTelugu) ? relScheme.titleTelugu : relScheme.title;
-                const relSummary = (isTelugu && relScheme.shortSummaryTelugu) ? relScheme.shortSummaryTelugu : relScheme.shortSummary;
+                const relTitle = (isTelugu && relScheme.titleTelugu) ? relScheme.titleTelugu : (isHindi && (relScheme as any).titleHindi) ? (relScheme as any).titleHindi : relScheme.title;
+                const relSummary = (isTelugu && relScheme.shortSummaryTelugu) ? relScheme.shortSummaryTelugu : (isHindi && (relScheme as any).shortSummaryHindi) ? (relScheme as any).shortSummaryHindi : relScheme.shortSummary;
                 const isRelSaved = savedArticleIds.includes(relScheme.id);
 
                 return (
@@ -687,10 +688,10 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({
                     <div className="px-4 pb-4 pt-1 flex items-center justify-between text-xs border-t border-slate-100 mt-2">
                       <span className="text-slate-500 text-[11px] font-medium flex items-center gap-1">
                         <Clock className="w-3 h-3 text-emerald-600" />
-                        {relScheme.readTimeMinutes} {isTelugu ? 'నిమి' : 'min'}
+                        {relScheme.readTimeMinutes} {isTelugu ? 'నిమి' : isHindi ? 'मिनट' : 'min'}
                       </span>
                       <span className="text-emerald-700 font-extrabold text-xs flex items-center gap-1 group-hover:translate-x-1 transition-transform">
-                        <span>{isTelugu ? 'పూర్తి వివరాలు' : 'Read Guide'}</span>
+                        <span>{isTelugu ? 'పూర్తి వివరాలు' : isHindi ? 'पूरी जानकारी' : 'Read Guide'}</span>
                         <ArrowRight className="w-3.5 h-3.5" />
                       </span>
                     </div>
