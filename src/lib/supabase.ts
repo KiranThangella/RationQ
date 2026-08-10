@@ -157,6 +157,107 @@ let memoryPipeline: NewsPipelineItem[] = [...INITIAL_PIPELINE_ITEMS];
 let supabaseArticlesTableMissing = false;
 let supabasePipelineTableMissing = false;
 
+/**
+ * Diagnostic utility to verify Supabase connection, test table availability,
+ * and provide actionable log guidance.
+ */
+export async function testSupabaseConnection(): Promise<{
+  connected: boolean;
+  articlesTableExists: boolean;
+  newsPipelineTableExists: boolean;
+  details: string;
+}> {
+  const client = getSupabaseAdminClient() || getSupabaseClient();
+  if (!client) {
+    console.warn('❌ [Supabase Diagnostic] Client not initialized. Check SUPABASE_URL and API keys.');
+    return {
+      connected: false,
+      articlesTableExists: false,
+      newsPipelineTableExists: false,
+      details: 'Supabase URL or API keys are missing or unconfigured in environment.',
+    };
+  }
+
+  console.log('🔍 [Supabase Diagnostic] Testing connection and schema state...');
+  let articlesTableExists = false;
+  let newsPipelineTableExists = false;
+
+  try {
+    // 1. Test articles table
+    const { data: articlesData, error: articlesError } = await client
+      .from('articles')
+      .select('id')
+      .limit(1);
+
+    if (articlesError) {
+      if (
+        articlesError.code === 'PGRST204' ||
+        articlesError.code === '42P01' ||
+        articlesError.message?.includes('schema cache') ||
+        articlesError.message?.includes('not find the table') ||
+        articlesError.message?.includes('relation "public.articles" does not exist')
+      ) {
+        supabaseArticlesTableMissing = true;
+        console.warn('⚠️ [Supabase Diagnostic] "articles" table missing or not found in schema cache.');
+        console.info('💡 Tip: Run the SQL statements in supabase_schema.sql inside your Supabase SQL Editor.');
+      } else {
+        console.warn('⚠️ [Supabase Diagnostic] "articles" query error:', articlesError.message, articlesError);
+      }
+    } else {
+      articlesTableExists = true;
+      supabaseArticlesTableMissing = false;
+      console.log(`✅ [Supabase Diagnostic] "articles" table verified! (${articlesData?.length ?? 0} sample rows)`);
+    }
+
+    // 2. Test news_pipeline table
+    const { data: pipelineData, error: pipelineError } = await client
+      .from('news_pipeline')
+      .select('id')
+      .limit(1);
+
+    if (pipelineError) {
+      if (
+        pipelineError.code === 'PGRST204' ||
+        pipelineError.code === '42P01' ||
+        pipelineError.message?.includes('schema cache') ||
+        pipelineError.message?.includes('not find the table') ||
+        pipelineError.message?.includes('relation "public.news_pipeline" does not exist')
+      ) {
+        supabasePipelineTableMissing = true;
+        console.warn('⚠️ [Supabase Diagnostic] "news_pipeline" table missing or not found in schema cache.');
+      } else {
+        console.warn('⚠️ [Supabase Diagnostic] "news_pipeline" query error:', pipelineError.message);
+      }
+    } else {
+      newsPipelineTableExists = true;
+      supabasePipelineTableMissing = false;
+      console.log('✅ [Supabase Diagnostic] "news_pipeline" table verified!');
+    }
+
+    const connected = articlesTableExists || newsPipelineTableExists;
+    const details = connected
+      ? 'Supabase connection established and database tables are accessible.'
+      : 'Connected to Supabase project, but database tables are missing. Please execute supabase_schema.sql in Supabase SQL Editor.';
+
+    return { connected, articlesTableExists, newsPipelineTableExists, details };
+  } catch (err: any) {
+    console.error('❌ [Supabase Diagnostic] Unexpected connection exception:', err?.message || err);
+    return {
+      connected: false,
+      articlesTableExists: false,
+      newsPipelineTableExists: false,
+      details: err?.message || 'Unexpected connection error',
+    };
+  }
+}
+
+// Automatically execute diagnostic check once on module load in browser
+if (typeof window !== 'undefined') {
+  setTimeout(() => {
+    testSupabaseConnection().catch(() => {});
+  }, 1000);
+}
+
 export async function fetchAllArticlesFromStore(): Promise<Article[]> {
   const map = new Map<string, Article>();
 

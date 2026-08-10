@@ -57,9 +57,14 @@ export const EligibilityWizard: React.FC<EligibilityWizardProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
-      const data = await res.json();
-      setResults(data);
-      setStep(6); // Results view
+      if (res.ok) {
+        const contentType = res.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const data = await res.json();
+          setResults(data);
+          setStep(6); // Results view
+        }
+      }
     } catch (err) {
       console.error('Eligibility check error:', err);
     } finally {

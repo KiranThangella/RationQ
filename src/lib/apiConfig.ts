@@ -33,3 +33,24 @@ export function getApiUrl(path: string): string {
   const baseUrl = getBackendBaseUrl();
   return baseUrl ? `${baseUrl}${cleanPath}` : cleanPath;
 }
+
+export async function safeFetchJson<T = any>(pathOrUrl: string, options?: RequestInit): Promise<T | null> {
+  const url = getApiUrl(pathOrUrl);
+  try {
+    const res = await fetch(url, options);
+    if (!res.ok) {
+      console.warn(`[API Warning] ${res.status} ${res.statusText} for ${url}`);
+      return null;
+    }
+    const contentType = res.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      return (await res.json()) as T;
+    }
+    const text = await res.text();
+    console.warn(`[API Warning] Non-JSON response received from ${url}:`, text.slice(0, 100));
+    return null;
+  } catch (err) {
+    console.warn(`[API Error] Request failed for ${url}:`, err);
+    return null;
+  }
+}

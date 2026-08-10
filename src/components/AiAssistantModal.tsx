@@ -46,15 +46,20 @@ export const AiAssistantModal: React.FC<AiAssistantModalProps> = ({
         body: JSON.stringify({ message: textToSend }),
       });
       if (res.ok) {
-        const data = await res.json();
-        setMessages([
-          ...newMessages,
-          {
-            sender: 'assistant',
-            text: data.reply || 'Here is the verified information for your query based on current government welfare records.',
-            verifiedCount: data.verifiedSourcesUsed || 3,
-          },
-        ]);
+        const contentType = res.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const data = await res.json();
+          setMessages([
+            ...newMessages,
+            {
+              sender: 'assistant',
+              text: data.reply || 'Here is the verified information for your query based on current government welfare records.',
+              verifiedCount: data.verifiedSourcesUsed || 3,
+            },
+          ]);
+        } else {
+          throw new Error('Non-JSON response received');
+        }
       } else {
         throw new Error('API server unavailable');
       }

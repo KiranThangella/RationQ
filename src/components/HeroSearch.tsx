@@ -25,9 +25,13 @@ export const HeroSearch: React.FC<HeroSearchProps> = ({
   useEffect(() => {
     if (searchQuery.trim().length > 1) {
       fetch(getApiUrl(`/api/search?q=${encodeURIComponent(searchQuery)}`))
-        .then((res) => res.json())
+        .then((res) => {
+          if (!res.ok) return null;
+          const ct = res.headers.get('content-type');
+          return ct && ct.includes('application/json') ? res.json() : null;
+        })
         .then((data) => {
-          if (data.suggestions) {
+          if (data && data.suggestions) {
             setSuggestions(data.suggestions);
             setShowDropdown(true);
           }
