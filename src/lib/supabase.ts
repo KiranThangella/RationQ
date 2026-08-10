@@ -261,22 +261,29 @@ if (typeof window !== 'undefined') {
 export function deduplicateArticles(articles: Article[]): Article[] {
   const seenIds = new Set<string>();
   const seenSlugs = new Set<string>();
-  const seenTitles = new Set<string>();
+  const seenNormTitles = new Set<string>();
+  const seenNormTelugu = new Set<string>();
   const result: Article[] = [];
 
   for (const a of articles) {
     if (!a) continue;
     const id = (a.id || '').trim();
     const slug = (a.slug || '').trim().toLowerCase();
-    const title = (a.title || '').trim().toLowerCase();
+    const rawTitle = (a.title || '').trim();
+    const rawTelugu = (a.titleTelugu || '').trim();
+
+    const normTitle = rawTitle.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const normTelugu = rawTelugu.toLowerCase().replace(/[^\u0C00-\u0C7F0-9a-z]/g, '');
 
     if (id && seenIds.has(id)) continue;
     if (slug && seenSlugs.has(slug)) continue;
-    if (title && seenTitles.has(title)) continue;
+    if (normTitle && seenNormTitles.has(normTitle)) continue;
+    if (normTelugu && normTelugu.length > 5 && seenNormTelugu.has(normTelugu)) continue;
 
     if (id) seenIds.add(id);
     if (slug) seenSlugs.add(slug);
-    if (title) seenTitles.add(title);
+    if (normTitle) seenNormTitles.add(normTitle);
+    if (normTelugu && normTelugu.length > 5) seenNormTelugu.add(normTelugu);
 
     result.push(a);
   }
