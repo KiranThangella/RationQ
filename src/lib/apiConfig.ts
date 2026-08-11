@@ -7,22 +7,7 @@ export function getBackendBaseUrl(): string {
   if (rawApiUrl) {
     return rawApiUrl.replace(/\/$/, '');
   }
-  
-  if (typeof window !== 'undefined') {
-    const hostname = window.location.hostname;
-    // If running locally or on Cloud Run dev container, relative /api paths work
-    if (
-      hostname === 'localhost' ||
-      hostname === '127.0.0.1' ||
-      hostname.endsWith('.run.app')
-    ) {
-      return '';
-    }
-    // Default production backend on Render when hosted on Cloudflare Pages, Vercel, Netlify, custom domain, etc.
-    return 'https://rationq-hs7w.onrender.com';
-  }
-
-  return 'https://rationq-hs7w.onrender.com';
+  return '';
 }
 
 export function getApiUrl(path: string): string {
