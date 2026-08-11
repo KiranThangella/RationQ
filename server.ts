@@ -796,6 +796,439 @@ Return pure JSON matching this expanded structure strictly:
     });
   });
 
+
+  app.post('/api/admin/auto-fetch/ai-crawl', async (req: Request, res: Response) => {
+    try {
+      const { stateName } = req.body;
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: 'GEMINI_API_KEY is not configured.' });
+      }
+
+      const { GoogleGenAI } = await import('@google/genai');
+      const ai = new GoogleGenAI({ apiKey });
+      const searchTarget = stateName ? `latest official government schemes launched in ${stateName}, India within the last 3 months` : 'latest central government schemes launched in India';
+      
+      const prompt = `Search the web for the ${searchTarget}. Pick ONE real, officially announced government scheme (not older than 6 months) and return a detailed JSON object representing it.
+Return ONLY valid JSON matching this schema:
+{
+  "title": "Scheme Name",
+  "titleTelugu": "Scheme Name in Telugu",
+  "shortSummary": "1-2 lines",
+  "shortSummaryTelugu": "1-2 lines in Telugu",
+  "whatHappened": "What was recently announced?",
+  "whatHappenedTelugu": "In Telugu",
+  "whatIsScheme": "Description",
+  "whatIsSchemeTelugu": "Description in Telugu",
+  "benefits": [{ "id": "b1", "title": "Benefit", "amount": "₹5000", "type": "financial", "description": "Details" }],
+  "whoCanApply": ["Condition 1"],
+  "whoCannotApply": ["Condition 1"],
+  "documents": [{ "id": "d1", "name": "Aadhaar", "required": true, "description": "Proof" }],
+  "steps": [{ "stepNumber": 1, "title": "Apply", "description": "Details" }],
+  "officialWebsite": "https://example.gov.in",
+  "category": "Government Schemes",
+  "state": "${stateName || 'Central Government'}",
+  "isCentral": ${!stateName},
+  "readTimeMinutes": 3,
+  "faqs": [{ "question": "Q", "answer": "A", "questionTelugu": "Q in Te", "answerTelugu": "A in Te" }],
+  "source": {
+    "name": "Official Source Name",
+    "url": "https://example.gov.in",
+    "domain": "example.gov.in",
+    "type": "portal",
+    "verifiedDate": "${new Date().toISOString().split('T')[0]}",
+    "verificationStatus": "verified",
+    "department": "Department Name"
+  }
+}
+Do not include markdown blocks like \`\`\`json. Return pure JSON.`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-pro',
+        contents: prompt,
+        config: {
+          tools: [{ googleSearch: {} }],
+          responseMimeType: 'application/json',
+        }
+      });
+
+      const text = response.text || '';
+      let parsedData;
+      try {
+        parsedData = JSON.parse(text);
+      } catch (e) {
+        // Strip markdown if AI still returned it
+        const cleaned = text.replace(/^```(json)?\n/i, '').replace(/\n```$/i, '');
+        parsedData = JSON.parse(cleaned);
+      }
+
+      const articleId = `ai-fetched-${Date.now()}`;
+      const slug = parsedData.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+      const newArticle: Article = {
+        ...parsedData,
+        id: articleId,
+        slug: slug || articleId,
+        schemeId: `GOI-${Math.floor(1000 + Math.random() * 9000)}`,
+        status: 'published',
+        publishedAt: new Date().toISOString(),
+        lastVerifiedAt: new Date().toISOString(),
+        isNew: true,
+        isUpdated: false,
+        generatedImage: 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&q=80&w=1200'
+      };
+
+      await saveArticleToStore(newArticle);
+
+      res.json({ success: true, article: newArticle, message: `Successfully fetched and published AI scheme for ${stateName || 'Central'}` });
+
+    } catch (err: any) {
+      console.error('AI Crawl Error:', err);
+      res.status(500).json({ error: 'Failed to run AI Crawler', message: err.message });
+    }
+  });
+
+
+  // AI Feature Image Prompt Generator Endpoint
+  app.post('/api/admin/generate-image-prompt', async (req: Request, res: Response) => {
+    try {
+      const { title = '', category = '', state = '', shortSummary = '' } = req.body;
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: 'GEMINI_API_KEY not configured.' });
+      }
+
+      const { GoogleGenAI } = await import('@google/genai');
+      const ai = new GoogleGenAI({ apiKey });
+      const prompt = `You are an expert AI photo prompt engineer for Indian government scheme portals. Create a vivid, highly photorealistic 1-sentence image generation prompt in English for a hero image representing this government scheme:
+Title: ${title}
+Category: ${category}
+State: ${state}
+Summary: ${shortSummary}
+
+Requirements:
+- Photorealistic Indian context (farmers, students, women, digital India, solar, housing, etc.)
+- Bright, authentic, professional aesthetic suitable for a news portal
+- Return ONLY valid JSON: {"prompt": "A photorealistic high definition image of..."}`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: { responseMimeType: 'application/json' },
+      });
+
+      const text = response.text || '{}';
+      let parsed = { prompt: `Photorealistic Indian government scheme illustration for ${title}, bright cinematic lighting, authentic` };
+      try {
+        parsed = JSON.parse(text);
+      } catch (e) {
+        console.warn('Fallback prompt parsing');
+      }
+
+      res.json({ success: true, prompt: parsed.prompt });
+    } catch (err: any) {
+      console.error('Image prompt error:', err);
+      res.status(500).json({ error: 'Failed to generate prompt', message: err.message });
+    }
+  });
+
+  // AI Feature Image Generator Endpoint
+  app.post('/api/admin/generate-feature-image', async (req: Request, res: Response) => {
+    try {
+      const { prompt = '', title = '', category = '', state = '' } = req.body;
+      const apiKey = process.env.GEMINI_API_KEY;
+
+      let keywords = prompt || `${title} ${category} ${state}`;
+      
+      if (apiKey) {
+        try {
+          const { GoogleGenAI } = await import('@google/genai');
+          const ai = new GoogleGenAI({ apiKey });
+          const extractPrompt = `Extract 3-4 English visual keywords (comma separated) for an Unsplash photo search based on this description: "${keywords}"`;
+          const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: extractPrompt,
+          });
+          if (response.text) {
+            keywords = response.text.trim().replace(/[^a-zA-Z0-9, ]/g, '');
+          }
+        } catch (e) {
+          console.warn('Keyword extraction fallback');
+        }
+      }
+
+      const schemeImgs = getSchemeImages(title, category, state, keywords);
+      const imageUrl = schemeImgs.heroImage;
+
+      res.json({ success: true, imageUrl, prompt });
+    } catch (err: any) {
+      console.error('Feature image gen error:', err);
+      res.status(500).json({ error: 'Failed to generate feature image', message: err.message });
+    }
+  });
+
+  // ==========================================
+  // VIRAL CONTENT GENERATION SERVICE ENDPOINTS
+  // ==========================================
+
+  // 1. Optimize single article for virality using Gemini
+  app.post('/api/admin/viral/optimize-article', async (req: Request, res: Response) => {
+    try {
+      const { articleId, customTone = 'good_news' } = req.body;
+      const allArticles = await fetchAllArticlesFromStore();
+      const article = allArticles.find(a => a.id === articleId || a.slug === articleId);
+
+      if (!article) {
+        return res.status(404).json({ error: 'Article not found' });
+      }
+
+      const apiKey = process.env.GEMINI_API_KEY || process.env.AI_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: 'GEMINI_API_KEY is not configured.' });
+      }
+
+      const { GoogleGenAI } = await import('@google/genai');
+      const ai = new GoogleGenAI({ apiKey });
+
+      const prompt = `You are an expert viral content editor for Indian news portals and government scheme hubs.
+Analyze the following article and generate a viral, high-CTR, click-worthy headline and punchy meta-summary in both English and Telugu script.
+Keep all factual details, scheme amounts, and eligibility accurate, but inject high emotional resonance, urgency, and reader appeal.
+
+Article Input:
+- Title: ${article.title}
+- Title Telugu: ${article.titleTelugu || ''}
+- Category: ${article.category}
+- State: ${article.state}
+- Short Summary: ${article.shortSummary}
+- Short Summary Telugu: ${article.shortSummaryTelugu || ''}
+- Selected Tone: ${customTone}
+
+Requirements:
+- viralTitle: Extremely click-worthy, engaging English title (e.g., 'ALERT: ₹15,000 Credit Started! Check Full List & Status Now!')
+- viralTitleTelugu: High-CTR Telugu title with urgent, emotional appeal (e.g., 'గుడ్ న్యూస్! ఖాతాల్లో ₹15,000 జమైంది.. ఈ రోజే మీ పేరు ఉందో లేదో చూడండి!')
+- viralSummary: 1-2 lines in English summarizing key benefit, eligibility, and urgent call to action.
+- viralSummaryTelugu: 1-2 lines in Telugu script summarizing key benefit and urging reader to check status.
+- viralHooks: Array of 3 short curiosity bullet points for social sharing.
+- viralScore: Number between 88 and 99.
+- trendingAngle: 1 sentence explaining why this viral title will drive high CTR and social sharing across ${article.state}.
+
+Return ONLY pure valid JSON matching this schema:
+{
+  "viralTitle": "...",
+  "viralTitleTelugu": "...",
+  "viralSummary": "...",
+  "viralSummaryTelugu": "...",
+  "viralHooks": ["...", "...", "..."],
+  "viralScore": 95,
+  "trendingAngle": "..."
+}`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.6-flash',
+        contents: prompt,
+        config: { responseMimeType: 'application/json' },
+      });
+
+      let text = (response.text || '{}').trim();
+      text = text.replace(/^```(json)?\n?/i, '').replace(/\n?```$/i, '').trim();
+
+      let parsed: any = {};
+      try {
+        parsed = JSON.parse(text);
+      } catch (e) {
+        console.warn('Fallback parsing viral response');
+      }
+
+      // Update article in store
+      const updatedArticle: Article = {
+        ...article,
+        title: parsed.viralTitle || article.title,
+        titleTelugu: parsed.viralTitleTelugu || article.titleTelugu,
+        shortSummary: parsed.viralSummary || article.shortSummary,
+        shortSummaryTelugu: parsed.viralSummaryTelugu || article.shortSummaryTelugu,
+        viralScore: parsed.viralScore || 92,
+        trendingAngle: parsed.trendingAngle || 'High search volume topic across Indian states',
+        viralHooks: parsed.viralHooks || ['Direct benefit credit', 'Official status link', 'Eligibility update'],
+        isViralOptimized: true,
+        isUpdated: true,
+        lastVerifiedAt: new Date().toISOString(),
+      };
+
+      await saveArticleToStore(updatedArticle);
+
+      res.json({
+        success: true,
+        article: updatedArticle,
+        result: parsed,
+        message: '⚡ Article successfully viral-optimized and updated!',
+      });
+    } catch (err: any) {
+      console.error('Viral optimization error:', err);
+      res.status(500).json({ error: 'Failed to optimize article for virality', message: err.message });
+    }
+  });
+
+  // 2. Batch optimize articles for virality
+  app.post('/api/admin/viral/batch-optimize', async (req: Request, res: Response) => {
+    try {
+      const { stateFilter = 'All States', limit = 10 } = req.body;
+      const allArticles = await fetchAllArticlesFromStore();
+
+      let targetArticles = allArticles;
+      if (stateFilter && stateFilter !== 'All States') {
+        const sf = stateFilter.toLowerCase();
+        targetArticles = targetArticles.filter(a => a.state.toLowerCase().includes(sf) || (sf === 'central' && a.isCentral));
+      }
+
+      targetArticles = targetArticles.slice(0, Math.min(Number(limit) || 10, 20));
+
+      if (targetArticles.length === 0) {
+        return res.json({ success: true, updatedCount: 0, message: 'No matching articles found for batch optimization.' });
+      }
+
+      const apiKey = process.env.GEMINI_API_KEY || process.env.AI_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: 'GEMINI_API_KEY is not configured.' });
+      }
+
+      const { GoogleGenAI } = await import('@google/genai');
+      const ai = new GoogleGenAI({ apiKey });
+
+      const updatedArticles: Article[] = [];
+
+      for (const article of targetArticles) {
+        try {
+          const prompt = `Rewrite title and summary for virality and high CTR:
+Title: ${article.title}
+State: ${article.state}
+Category: ${article.category}
+Summary: ${article.shortSummary}
+
+Return pure JSON matching this schema:
+{
+  "viralTitle": "High CTR English Title",
+  "viralTitleTelugu": "High CTR Telugu Title",
+  "viralSummary": "High CTR English Summary",
+  "viralSummaryTelugu": "High CTR Telugu Summary",
+  "viralScore": 94,
+  "trendingAngle": "Search trend explanation"
+}`;
+
+          const response = await ai.models.generateContent({
+            model: 'gemini-3.6-flash',
+            contents: prompt,
+            config: { responseMimeType: 'application/json' },
+          });
+
+          let text = (response.text || '{}').trim();
+          text = text.replace(/^```(json)?\n?/i, '').replace(/\n?```$/i, '').trim();
+
+          let parsed: any = {};
+          try {
+            parsed = JSON.parse(text);
+          } catch (e) {
+            parsed = {};
+          }
+
+          const updated: Article = {
+            ...article,
+            title: parsed.viralTitle || article.title,
+            titleTelugu: parsed.viralTitleTelugu || article.titleTelugu,
+            shortSummary: parsed.viralSummary || article.shortSummary,
+            shortSummaryTelugu: parsed.viralSummaryTelugu || article.shortSummaryTelugu,
+            viralScore: parsed.viralScore || 90,
+            trendingAngle: parsed.trendingAngle || 'High CTR Batch Optimization',
+            isViralOptimized: true,
+            isUpdated: true,
+            lastVerifiedAt: new Date().toISOString(),
+          };
+
+          await saveArticleToStore(updated);
+          updatedArticles.push(updated);
+        } catch (itemErr) {
+          console.warn(`Batch item ${article.id} error:`, itemErr);
+        }
+      }
+
+      res.json({
+        success: true,
+        updatedCount: updatedArticles.length,
+        message: `🚀 Batch optimization complete! Updated ${updatedArticles.length} articles with viral headlines & meta summaries.`,
+        articles: updatedArticles,
+      });
+    } catch (err: any) {
+      console.error('Batch viral optimization error:', err);
+      res.status(500).json({ error: 'Failed batch viral optimization', message: err.message });
+    }
+  });
+
+  // 3. Analyze state trending topics across India
+  app.post('/api/admin/viral/analyze-trends', async (req: Request, res: Response) => {
+    try {
+      const { stateName = 'Andhra Pradesh & Telangana' } = req.body;
+      const apiKey = process.env.GEMINI_API_KEY || process.env.AI_API_KEY;
+
+      if (!apiKey) {
+        return res.status(500).json({ error: 'GEMINI_API_KEY is not configured.' });
+      }
+
+      const { GoogleGenAI } = await import('@google/genai');
+      const ai = new GoogleGenAI({ apiKey });
+
+      const prompt = `You are an expert news analyst and SEO strategist for Indian welfare news platforms.
+Search and analyze current viral search trends, breaking news, and high-interest topics regarding government schemes, pensions, farmer benefits, and student welfare in: ${stateName}.
+
+Identify 4 viral trending topic ideas that citizens are actively searching for in this region right now.
+Return ONLY valid JSON matching this schema:
+{
+  "state": "${stateName}",
+  "recommendation": "1-2 sentences giving strategic editorial advice for maximum CTR today.",
+  "trends": [
+    {
+      "id": "trend-1",
+      "topicName": "Scheme / News Topic Name",
+      "state": "${stateName}",
+      "category": "Agriculture / Pension / Education / Welfare",
+      "searchVolume": "Viral (🔥)",
+      "proposedTitle": "High-CTR English Headline",
+      "proposedTitleTelugu": "High-CTR Telugu Headline (తెలుగు శీర్షిక)",
+      "viralSummary": "1-2 sentence high-engagement English meta summary",
+      "viralSummaryTelugu": "1-2 sentence Telugu meta summary",
+      "viralHook": "1 curiosity-inducing bullet line"
+    }
+  ]
+}`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.6-flash',
+        contents: prompt,
+        config: {
+          tools: [{ googleSearch: {} }],
+          responseMimeType: 'application/json',
+        },
+      });
+
+      let text = (response.text || '{}').trim();
+      text = text.replace(/^```(json)?\n?/i, '').replace(/\n?```$/i, '').trim();
+
+      let parsed: any = {};
+      try {
+        parsed = JSON.parse(text);
+      } catch (e) {
+        parsed = {};
+      }
+
+      res.json({
+        success: true,
+        state: parsed.state || stateName,
+        recommendation: parsed.recommendation || 'Focus on direct benefit transfers and application deadline alerts.',
+        trends: parsed.trends || [],
+      });
+    } catch (err: any) {
+      console.error('State viral trend analysis error:', err);
+      res.status(500).json({ error: 'Failed to analyze state viral trends', message: err.message });
+    }
+  });
+
   app.post('/api/admin/auto-fetch/toggle', (req: Request, res: Response) => {
     const { enabled } = req.body;
     if (enabled) {

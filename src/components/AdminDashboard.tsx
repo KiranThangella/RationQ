@@ -17,7 +17,12 @@ import {
   Search,
   Check,
   X,
-  Trash2
+  Trash2,
+  Flame,
+  TrendingUp,
+  Zap,
+  Share2,
+  ArrowRight
 } from 'lucide-react';
 import { Article, NewsPipelineItem } from '../types';
 import { requestAiRewrite, safeSaveArticle } from '../lib/aiRewriter';
@@ -25,6 +30,12 @@ import { fetchPipelineFromStore, deletePipelineItemFromStore, updateArticleInSup
 import { createSlug } from '../lib/slugUtils';
 import { getApiUrl, safeFetchJson } from '../lib/apiConfig';
 import { getArticleWebpImage } from '../lib/schemeImageLibrary';
+import {
+  optimizeArticleForViralityApi,
+  batchOptimizeArticlesApi,
+  fetchStateViralTrendsApi,
+  ViralTrendTopic
+} from '../lib/viralContentEngine';
 
 export function getArticleWordCount(art?: Partial<Article> | null): number {
   if (!art) return 0;
@@ -80,7 +91,73 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const [pipelineItems, setPipelineItems] = useState<NewsPipelineItem[]>([]);
   const [fetchingCrawl, setFetchingCrawl] = useState(false);
-  const [activeTab, setActiveTab] = useState<'articles' | 'pipeline' | 'editor'>('articles');
+  const [activeTab, setActiveTab] = useState<'articles' | 'pipeline' | 'editor' | 'viral'>('articles');
+
+  // Viral Content Service State
+  const [viralStateFilter, setViralStateFilter] = useState('All States');
+  const [selectedViralTone, setSelectedViralTone] = useState<'good_news' | 'urgent' | 'deadline_alert' | 'shocking_benefit'>('good_news');
+  const [optimizingViralId, setOptimizingViralId] = useState<string | null>(null);
+  const [batchOptimizingViral, setBatchOptimizingViral] = useState(false);
+  const [analyzingViralTrends, setAnalyzingViralTrends] = useState(false);
+  const [viralTrendsData, setViralTrendsData] = useState<ViralTrendTopic[]>([]);
+  const [viralRecommendation, setViralRecommendation] = useState<string>('');
+  const [viralStatusMsg, setViralStatusMsg] = useState<string | null>(null);
+
+  const handleOptimizeSingleViral = async (articleId: string, title: string) => {
+    setOptimizingViralId(articleId);
+    setViralStatusMsg(null);
+    try {
+      const res = await optimizeArticleForViralityApi(articleId, selectedViralTone);
+      if (res.success && res.article) {
+        setViralStatusMsg(`⚡ "${title.slice(0, 30)}..." కథనం వైరల్ హెడ్‌లైన్ మరియు మెటా సమ్మరీ తో విజయవంతంగా అప్‌డేట్ చేయబడింది!`);
+        onArticlePublished();
+      } else {
+        alert(res.message || 'Failed to viral-optimize article.');
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert('Error in viral optimization.');
+    } finally {
+      setOptimizingViralId(null);
+    }
+  };
+
+  const handleBatchOptimizeViral = async () => {
+    setBatchOptimizingViral(true);
+    setViralStatusMsg(null);
+    try {
+      const res = await batchOptimizeArticlesApi(viralStateFilter, 10);
+      if (res.success) {
+        setViralStatusMsg(res.message);
+        onArticlePublished();
+      } else {
+        alert(res.message || 'Batch optimization failed');
+      }
+    } catch (err: any) {
+      console.error(err);
+    } finally {
+      setBatchOptimizingViral(false);
+    }
+  };
+
+  const handleAnalyzeStateTrends = async () => {
+    setAnalyzingViralTrends(true);
+    setViralStatusMsg(null);
+    try {
+      const res = await fetchStateViralTrendsApi(viralStateFilter === 'All States' ? 'Andhra Pradesh & Telangana' : viralStateFilter);
+      if (res.success) {
+        setViralTrendsData(res.trends || []);
+        setViralRecommendation(res.recommendation || '');
+        setViralStatusMsg(`🔍 ${res.state} లో వైరల్ సెర్చ్ ట్రెండ్స్ విజయవంతంగా విశ్లేషించబడ్డాయి (Analyzed)!`);
+      } else {
+        alert('Could not fetch trends');
+      }
+    } catch (err: any) {
+      console.error(err);
+    } finally {
+      setAnalyzingViralTrends(false);
+    }
+  };
 
   // 10-Minute Auto Fetcher state
   const [autoFetchStatus, setAutoFetchStatus] = useState({
@@ -93,7 +170,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     lastDuplicateCount: 0,
     lastItemTitle: '',
   });
+
   const [triggeringAutoFetch, setTriggeringAutoFetch] = useState(false);
+  const [runningAiCrawler, setRunningAiCrawler] = useState(false);
+  const [aiCrawlerStateQuery, setAiCrawlerStateQuery] = useState('');
+  const [aiCrawlerMsg, setAiCrawlerMsg] = useState<string | null>(null);
+  const [aiImagePrompt, setAiImagePrompt] = useState('');
+  const [generatingPrompt, setGeneratingPrompt] = useState(false);
+  const [generatingImage, setGeneratingImage] = useState(false);
+  const [imageGenSuccessMsg, setImageGenSuccessMsg] = useState<string | null>(null);
+
+
   const [autoFetchMsg, setAutoFetchMsg] = useState<string | null>(null);
   const [expandingArticleId, setExpandingArticleId] = useState<string | null>(null);
   const [deletingArticleId, setDeletingArticleId] = useState<string | null>(null);
@@ -209,6 +296,7 @@ Existing Guide: ${editingArticle.detailedGuideText || editingArticle.whatIsSchem
     return () => clearInterval(timer);
   }, []);
 
+
   const handleManualAutoFetchTrigger = async () => {
     setTriggeringAutoFetch(true);
     setAutoFetchMsg(null);
@@ -220,14 +308,94 @@ Existing Guide: ${editingArticle.detailedGuideText || editingArticle.whatIsSchem
       } else {
         setAutoFetchMsg('Sync completed or using offline mode.');
       }
-      onArticlePublished();
     } catch (err) {
       console.error(err);
-      setAutoFetchMsg('Manual sync failed');
     } finally {
       setTriggeringAutoFetch(false);
     }
   };
+
+
+  const handleGenerateImagePrompt = async () => {
+    setGeneratingPrompt(true);
+    setImageGenSuccessMsg(null);
+    try {
+      const data = await safeFetchJson<{ success?: boolean; prompt?: string }>('/api/admin/generate-image-prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: editingArticle.title,
+          category: editingArticle.category,
+          state: editingArticle.state,
+          shortSummary: editingArticle.shortSummary,
+        }),
+      });
+      if (data && data.prompt) {
+        setAiImagePrompt(data.prompt);
+        setImageGenSuccessMsg('✨ AI Image Prompt generated successfully! Click "Generate Feature Image" below.');
+      } else {
+        setAiImagePrompt("Photorealistic hero image depicting Indian citizens benefiting from " + (editingArticle.title || 'government welfare scheme') + ", warm lighting, highly detailed");
+        setImageGenSuccessMsg('✨ Prompt generated with local template.');
+      }
+    } catch (err) {
+      console.error(err);
+      setImageGenSuccessMsg('❌ Error generating image prompt.');
+    } finally {
+      setGeneratingPrompt(false);
+    }
+  };
+
+  const handleGenerateFeatureImage = async () => {
+    setGeneratingImage(true);
+    setImageGenSuccessMsg(null);
+    try {
+      const data = await safeFetchJson<{ success?: boolean; imageUrl?: string }>('/api/admin/generate-feature-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: aiImagePrompt || editingArticle.title,
+          title: editingArticle.title,
+          category: editingArticle.category,
+          state: editingArticle.state,
+        }),
+      });
+      if (data && data.imageUrl) {
+        setEditingArticle(prev => ({ ...prev, generatedImage: data.imageUrl }));
+        setImageGenSuccessMsg('🎨 Feature image successfully generated and updated for this article!');
+      } else {
+        setImageGenSuccessMsg('❌ Failed to update feature image.');
+      }
+    } catch (err) {
+      console.error(err);
+      setImageGenSuccessMsg('❌ Error generating feature image.');
+    } finally {
+      setGeneratingImage(false);
+    }
+  };
+
+  const handleRunAiCrawler = async () => {
+    setRunningAiCrawler(true);
+    setAiCrawlerMsg(null);
+    try {
+      const data = await safeFetchJson<{ success?: boolean; article?: Article; message?: string }>('/api/admin/auto-fetch/ai-crawl', { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stateName: aiCrawlerStateQuery })
+      });
+      if (data && data.success) {
+        setAiCrawlerMsg(`🤖 AI Successfully fetched & published: "${data.article?.title}"`);
+        onArticlePublished();
+      } else {
+        setAiCrawlerMsg('AI Crawler completed with error or using offline mode. Check logs.');
+      }
+    } catch (err) {
+      console.error(err);
+      setAiCrawlerMsg('❌ Error running AI crawler.');
+    } finally {
+      setRunningAiCrawler(false);
+    }
+  };
+
 
   // Editor State
   const [editingArticle, setEditingArticle] = useState<Partial<Article>>({
@@ -735,6 +903,20 @@ Existing Guide: ${editingArticle.detailedGuideText || editingArticle.whatIsSchem
           <Sparkles className="w-4 h-4 text-amber-500" />
           <span>Structured AI Article Editor</span>
         </button>
+        <button
+          onClick={() => setActiveTab('viral')}
+          className={`pb-3 px-1 border-b-2 transition-colors flex items-center gap-1.5 font-bold ${
+            activeTab === 'viral'
+              ? 'border-rose-600 text-rose-700'
+              : 'border-transparent text-slate-500 hover:text-slate-900'
+          }`}
+        >
+          <Flame className="w-4 h-4 text-rose-600 animate-bounce" />
+          <span>🚀 Viral Content & Trend Booster</span>
+          <span className="bg-rose-100 text-rose-800 text-[10px] px-1.5 py-0.2 rounded-full font-extrabold uppercase">
+            AI VIRAL
+          </span>
+        </button>
       </div>
 
       {/* TAB 1: ARTICLES MANAGEMENT TABLE */}
@@ -834,6 +1016,20 @@ Existing Guide: ${editingArticle.detailedGuideText || editingArticle.whatIsSchem
                         >
                           <Sparkles className={`w-3.5 h-3.5 text-amber-300 ${expandingArticleId === art.id ? 'animate-spin' : ''}`} />
                           <span>{expandingArticleId === art.id ? 'విస్తరిస్తోంది...' : '⚡ AdSense కి విస్తరించు (Expand)'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            handleOptimizeSingleViral(art.id, art.title);
+                          }}
+                          disabled={optimizingViralId === art.id}
+                          className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-700 hover:to-amber-700 text-white text-xs font-extrabold inline-flex items-center gap-1 shadow-xs transition-all disabled:opacity-50"
+                          title="Generate viral click-worthy title & meta summary using Gemini"
+                        >
+                          <Flame className={`w-3.5 h-3.5 text-amber-200 ${optimizingViralId === art.id ? 'animate-spin' : ''}`} />
+                          <span>{optimizingViralId === art.id ? 'వైరల్ అవుతోంది...' : '🚀 వైరల్ చేయి (Viral)'}</span>
                         </button>
 
                         {art.status !== 'published' && (
@@ -1089,6 +1285,95 @@ Existing Guide: ${editingArticle.detailedGuideText || editingArticle.whatIsSchem
             </div>
           </div>
 
+          
+          {/* AI Feature Image & Prompt Generator Section */}
+          <div className="p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-indigo-800 text-white space-y-4 shadow-lg">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-indigo-900/80 pb-3">
+              <div>
+                <h3 className="text-sm font-extrabold text-amber-300 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-400" />
+                  🎨 AI Feature Image & Prompt Generator (ఆటోమేటిక్ ఇమేజ్ జనరేటర్)
+                </h3>
+                <p className="text-[11px] text-slate-300">
+                  Generate an AI prompt based on article details, then click to generate and attach a high-definition feature image.
+                </p>
+              </div>
+
+              {editingArticle.generatedImage && (
+                <div className="flex items-center gap-3 bg-slate-800/80 p-1.5 rounded-xl border border-slate-700 shrink-0">
+                  <img
+                    src={editingArticle.generatedImage}
+                    alt="Current Feature"
+                    className="w-16 h-12 object-cover rounded-lg border border-slate-600 shadow"
+                  />
+                  <div className="text-[10px] text-emerald-400 font-bold">Live Feature Image</div>
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-amber-200 uppercase tracking-wide">
+                  Feature Image URL (డైరెక్ట్ ఇమేజ్ లింక్)
+                </label>
+                <input
+                  type="text"
+                  value={editingArticle.generatedImage || ''}
+                  onChange={e => setEditingArticle({ ...editingArticle, generatedImage: e.target.value })}
+                  placeholder="https://images.unsplash.com/..."
+                  className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs font-mono text-white placeholder:text-slate-500"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-amber-200 uppercase tracking-wide">
+                    AI Image Prompt (ఇమేజ్ ప్రాంప్ట్)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleGenerateImagePrompt}
+                    disabled={generatingPrompt}
+                    className="text-[11px] font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1 transition-colors disabled:opacity-50"
+                  >
+                    <Sparkles className={"w-3.5 h-3.5 " + (generatingPrompt ? 'animate-spin' : '')} />
+                    <span>{generatingPrompt ? 'Creating Prompt...' : '✨ Create Prompt with Gemini'}</span>
+                  </button>
+                </div>
+                <textarea
+                  rows={2}
+                  value={aiImagePrompt}
+                  onChange={e => setAiImagePrompt(e.target.value)}
+                  placeholder='Click "Create Prompt with Gemini" or type custom image prompt here...'
+                  className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder:text-slate-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+              <div className="text-xs text-slate-300 font-medium">
+                {imageGenSuccessMsg ? (
+                  <span className="text-emerald-300 font-bold bg-emerald-950/60 px-3 py-1.5 rounded-lg border border-emerald-800 flex items-center gap-1">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    {imageGenSuccessMsg}
+                  </span>
+                ) : (
+                  <span>💡 Tip: Click "Create Prompt" first, then "Generate & Update Image".</span>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleGenerateFeatureImage}
+                disabled={generatingImage}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 shrink-0"
+              >
+                <Sparkles className={"w-4 h-4 " + (generatingImage ? 'animate-spin' : '')} />
+                <span>{generatingImage ? 'Generating Image...' : '🖼️ Generate & Update Feature Image'}</span>
+              </button>
+            </div>
+          </div>
+
           <div className="space-y-1">
             <label className="text-xs font-bold text-slate-700 uppercase">Short Summary (1-2 Sentences)</label>
             <textarea
@@ -1148,6 +1433,248 @@ Existing Guide: ${editingArticle.detailedGuideText || editingArticle.whatIsSchem
             >
               Approve & Save Scheme
             </button>
+          </div>
+
+        </div>
+      )}
+
+      {/* TAB 4: VIRAL CONTENT ENGINE & TREND BOOSTER */}
+      {activeTab === 'viral' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          
+          {/* Header Banner */}
+          <div className="p-6 rounded-3xl bg-gradient-to-br from-slate-950 via-rose-950 to-slate-900 text-white border border-rose-800/80 shadow-xl space-y-4">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div className="space-y-2 max-w-2xl">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 text-xs font-black uppercase tracking-wider">
+                  <Flame className="w-4 h-4 text-rose-400 animate-pulse" />
+                  <span>Gemini 3.6 Viral Content Service Layer</span>
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-serif font-bold text-white">
+                  Trending Topic Analyzer & High-CTR Viral Generator
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                  భారతదేశ వ్యాప్తంగా మరియు ఆంధ్రప్రదేశ్, తెలంగాణ రాష్టాల్లో ప్రజలు గూగుల్‌లో ఎక్కువగా వెతుకుతున్న వైరల్ టాపిక్స్‌ను విశ్లేషించి, ఆర్టికల్ శీర్షికలు మరియు మెటా సమ్మరీలను హై-క్లిక్ క్లిక్‌వర్తీ (High CTR) హెడ్‌లైన్స్‌గా మారుస్తుంది.
+                </p>
+              </div>
+
+              {/* State & Tone Controls */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0 bg-slate-900/90 p-4 rounded-2xl border border-rose-900/60 shadow-inner">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wide block">
+                    Target Indian State
+                  </label>
+                  <select
+                    value={viralStateFilter}
+                    onChange={e => setViralStateFilter(e.target.value)}
+                    className="p-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white font-bold focus:ring-2 focus:ring-rose-500"
+                  >
+                    <option value="All States">🇮🇳 All India & Central</option>
+                    <option value="Andhra Pradesh">🏛️ Andhra Pradesh (AP)</option>
+                    <option value="Telangana">🏰 Telangana (TG)</option>
+                    <option value="Central">🏛️ Central Government</option>
+                    <option value="Maharashtra">🏙️ Maharashtra</option>
+                    <option value="Karnataka">🌆 Karnataka</option>
+                    <option value="Uttar Pradesh">🕌 Uttar Pradesh</option>
+                    <option value="Tamil Nadu">🌅 Tamil Nadu</option>
+                    <option value="Bihar">🌾 Bihar</option>
+                    <option value="Rajasthan">🐪 Rajasthan</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wide block">
+                    Viral Headline Tone
+                  </label>
+                  <select
+                    value={selectedViralTone}
+                    onChange={e => setSelectedViralTone(e.target.value as any)}
+                    className="p-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white font-bold focus:ring-2 focus:ring-rose-500"
+                  >
+                    <option value="good_news">🎉 Good News (గుడ్ న్యూస్!)</option>
+                    <option value="urgent">🚨 Urgent Alert (అలర్ట్!)</option>
+                    <option value="deadline_alert">⏰ Deadline Alert (లాస్ట్ డేట్!)</option>
+                    <option value="shocking_benefit">💰 Direct Credit (ఖాతాల్లో జమా!)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Main Action Buttons */}
+            <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-rose-900/60">
+              <button
+                onClick={handleAnalyzeStateTrends}
+                disabled={analyzingViralTrends}
+                className="px-5 py-3 rounded-xl bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white font-black text-xs shadow-lg transition-all flex items-center gap-2 disabled:opacity-50"
+              >
+                <TrendingUp className={`w-4 h-4 ${analyzingViralTrends ? 'animate-spin' : ''}`} />
+                <span>{analyzingViralTrends ? 'ట్రెండ్స్ విశ్లేషిస్తోంది...' : '🔍 Analyze Real-Time State Viral Trends'}</span>
+              </button>
+
+              <button
+                onClick={handleBatchOptimizeViral}
+                disabled={batchOptimizingViral}
+                className="px-5 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-black text-xs shadow-lg transition-all flex items-center gap-2 disabled:opacity-50"
+              >
+                <Zap className={`w-4 h-4 ${batchOptimizingViral ? 'animate-spin' : ''}`} />
+                <span>{batchOptimizingViral ? 'బ్యాచ్ రన్ అవుతోంది...' : `⚡ Batch Viral-Optimize (${viralStateFilter})`}</span>
+              </button>
+            </div>
+
+            {viralStatusMsg && (
+              <div className="p-3.5 rounded-xl bg-rose-950/80 border border-rose-700 text-rose-200 text-xs font-extrabold flex items-center gap-2.5 animate-in fade-in">
+                <CheckCircle2 className="w-5 h-5 text-rose-400 shrink-0" />
+                <span>{viralStatusMsg}</span>
+              </div>
+            )}
+          </div>
+
+          {/* REAL-TIME VIRAL TRENDS RESULTS */}
+          {viralTrendsData.length > 0 && (
+            <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-md space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <Flame className="w-5 h-5 text-rose-600" />
+                  <h3 className="font-serif font-bold text-lg text-slate-900">
+                    Top Trending Viral Topics for {viralStateFilter}
+                  </h3>
+                </div>
+                <span className="text-xs text-slate-500 font-semibold">
+                  Powered by Gemini Search Grounding
+                </span>
+              </div>
+
+              {viralRecommendation && (
+                <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span><strong>Editorial Advice:</strong> {viralRecommendation}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {viralTrendsData.map((item, idx) => (
+                  <div key={item.id || idx} className="p-4 rounded-2xl bg-slate-50 border border-slate-200 hover:border-rose-300 transition-all space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="bg-rose-100 text-rose-800 text-[10px] px-2 py-0.5 rounded-full font-black uppercase tracking-wider">
+                        {item.searchVolume || 'Viral (🔥)'}
+                      </span>
+                      <span className="text-[11px] font-bold text-slate-500">{item.category} • {item.state}</span>
+                    </div>
+
+                    <div className="font-extrabold text-sm text-slate-900">
+                      {item.proposedTitle}
+                    </div>
+
+                    <div className="font-bold text-xs text-rose-700 font-sans">
+                      {item.proposedTitleTelugu}
+                    </div>
+
+                    <p className="text-xs text-slate-600">
+                      {item.viralSummary}
+                    </p>
+
+                    <div className="pt-2 flex items-center justify-between border-t border-slate-200/60">
+                      <span className="text-[10px] text-slate-500 font-medium italic">
+                        💡 {item.viralHook}
+                      </span>
+
+                      <button
+                        onClick={() => {
+                          setEditingArticle({
+                            title: item.proposedTitle,
+                            titleTelugu: item.proposedTitleTelugu,
+                            shortSummary: item.viralSummary,
+                            shortSummaryTelugu: item.viralSummaryTelugu,
+                            category: item.category || 'Government Schemes',
+                            state: item.state || viralStateFilter,
+                            isCentral: item.state === 'Central',
+                            officialWebsite: 'https://myscheme.gov.in',
+                            generatedImage: getArticleWebpImage(item.proposedTitle, item.category || 'Government Schemes'),
+                            status: 'draft',
+                          });
+                          setActiveTab('editor');
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs transition-colors flex items-center gap-1 shrink-0"
+                      >
+                        <span>Create Scheme Article</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ARTICLE VIRAL PREVIEW TABLE */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden space-y-3">
+            <div className="p-4 bg-slate-900 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Flame className="w-4 h-4 text-rose-400" />
+                <span>Existing Articles Viral Status & Optimization List</span>
+              </div>
+              <span className="text-[11px] text-slate-300">
+                Click "Transform Headline" to upgrade titles with Gemini
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs sm:text-sm">
+                <thead className="bg-slate-100 text-slate-600 font-bold uppercase text-[10px]">
+                  <tr>
+                    <th className="p-3.5">Headline & Telugu Title</th>
+                    <th className="p-3.5">State & Category</th>
+                    <th className="p-3.5">Viral Score & Status</th>
+                    <th className="p-3.5">Meta Summary</th>
+                    <th className="p-3.5 text-right">Viral Optimization</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-medium">
+                  {safeArticles.map(art => (
+                    <tr key={art.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="p-3.5 max-w-sm">
+                        <div className="font-extrabold text-slate-900">{art.title}</div>
+                        {art.titleTelugu && (
+                          <div className="text-xs font-bold text-rose-700 mt-0.5">{art.titleTelugu}</div>
+                        )}
+                      </td>
+                      <td className="p-3.5 whitespace-nowrap">
+                        <span className="font-bold text-slate-800 block">{art.state}</span>
+                        <span className="text-[11px] text-slate-500">{art.category}</span>
+                      </td>
+                      <td className="p-3.5 whitespace-nowrap">
+                        <div className="flex flex-col gap-1">
+                          {art.isViralOptimized ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-black text-rose-800 bg-rose-100 border border-rose-300 px-2.5 py-0.5 rounded-full w-fit">
+                              <Flame className="w-3 h-3 text-rose-600" />
+                              <span>Viral Score: {art.viralScore || 95}% (High CTR)</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full w-fit">
+                              <span>Standard Headline</span>
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-3.5 max-w-xs text-xs text-slate-600 line-clamp-2">
+                        {art.shortSummary}
+                      </td>
+                      <td className="p-3.5 text-right whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => handleOptimizeSingleViral(art.id, art.title)}
+                          disabled={optimizingViralId === art.id}
+                          className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white font-extrabold text-xs shadow-md transition-all flex items-center gap-1.5 ml-auto disabled:opacity-50"
+                        >
+                          <Flame className={`w-3.5 h-3.5 ${optimizingViralId === art.id ? 'animate-spin' : ''}`} />
+                          <span>{optimizingViralId === art.id ? 'వైరల్ అవుతోంది...' : '🚀 Transform Headline'}</span>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
         </div>

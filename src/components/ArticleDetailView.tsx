@@ -225,9 +225,11 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({
                       Pass
                     </span>
                   </div>
-                  <p className="text-xs text-emerald-800 font-medium">
-                    {isTelugu ? 'శాఖ నుండి సేకరించబడింది:' : isHindi ? 'से सत्यापित:' : 'Verified from'} {article.source.department} ({article.source.domain})
-                  </p>
+                  {article.source && (
+                    <p className="text-xs text-emerald-800 font-medium">
+                      {isTelugu ? 'శాఖ నుండి సేకరించబడింది:' : isHindi ? 'से सत्यापित:' : 'Verified from'} {article.source.department} ({article.source.domain})
+                    </p>
+                  )}
                 </div>
               </div>
 

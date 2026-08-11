@@ -107,6 +107,10 @@ export interface Article {
   faqs?: { question: string; answer: string; questionTelugu?: string; answerTelugu?: string }[];
   detailedGuideText?: string;
   detailedGuideTextTelugu?: string;
+  viralScore?: number;
+  trendingAngle?: string;
+  isViralOptimized?: boolean;
+  viralHooks?: string[];
 }
 
 export interface NewsPipelineItem {

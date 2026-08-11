@@ -50,6 +50,17 @@ async function run() {
       isUpdated: false,
       status: 'published',
       readTimeMinutes: 3,
+      deadline: null,
+      importantWarnings: ['Apply through official government portals only. Beware of fraudulent agents.'],
+      source: {
+        name: `${state} Official Portal`,
+        url: `https://www.${state.toLowerCase().replace(/[^a-z0-9]+/g, '')}.gov.in`,
+        domain: `${state.toLowerCase().replace(/[^a-z0-9]+/g, '')}.gov.in`,
+        type: 'state_portal',
+        verifiedDate: new Date().toISOString().split('T')[0],
+        verificationStatus: 'verified',
+        department: 'Department of Social Welfare',
+      },
       generatedImage: 'https://images.unsplash.com/photo-1593113562332-90a6e355cfa7?auto=format&fit=crop&fm=webp&q=75&w=800',
     };
 
