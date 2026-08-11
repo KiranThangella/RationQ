@@ -42,6 +42,13 @@ export function normalizeText(text: string): string {
 }
 
 // Check if a title or source URL is a duplicate of existing articles or pipeline items
+// Better duplicate checking using core scheme keywords
+const CORE_KEYWORDS = [
+  'surya ghar', 'mahalakshmi', 'vishwakarma', 'pm-jay', 'ayushman', 'pm-kisan', 'kisan samman', 
+  'awas yojana', 'pmay', 'mudra', 'garib kalyan', 'annadata', 'pension', 'jan dhan', 'sukanya', 
+  'kisan vikas', 'digital citizen'
+];
+
 export function checkIsDuplicate(
   title: string,
   sourceUrl: string = '',
@@ -49,6 +56,8 @@ export function checkIsDuplicate(
   existingPipeline: NewsPipelineItem[] = []
 ): { isDuplicate: boolean; reason?: string } {
   const normTitle = normalizeText(title);
+  const titleLower = title.toLowerCase();
+  const matchedKeyword = CORE_KEYWORDS.find(kw => titleLower.includes(kw));
 
   for (const art of existingArticles) {
     const artNorm = normalizeText(art.title);
@@ -62,6 +71,10 @@ export function checkIsDuplicate(
       return { isDuplicate: true, reason: `Source URL already exists in database: ${sourceUrl}` };
     }
 
+    if (matchedKeyword && art.title.toLowerCase().includes(matchedKeyword)) {
+       return { isDuplicate: true, reason: `Scheme already exists based on keyword "${matchedKeyword}" in "${art.title}"` };
+    }
+
     // High similarity check (if titles match 85%+ character overlap)
     if (artNorm.length > 10 && normTitle.length > 10) {
       if (artNorm.includes(normTitle) || normTitle.includes(artNorm)) {
@@ -72,9 +85,15 @@ export function checkIsDuplicate(
 
   for (const pipe of existingPipeline) {
     const pipeNorm = normalizeText(pipe.sourceTitle);
+    
     if (pipeNorm === normTitle) {
       return { isDuplicate: true, reason: `Matches existing news pipeline item: "${pipe.sourceTitle}"` };
     }
+    
+    if (matchedKeyword && pipe.sourceTitle.toLowerCase().includes(matchedKeyword)) {
+       return { isDuplicate: true, reason: `Matches existing pipeline item based on keyword "${matchedKeyword}" in "${pipe.sourceTitle}"` };
+    }
+
     if (pipe.sourceUrl && sourceUrl && pipe.sourceUrl === sourceUrl) {
       return { isDuplicate: true, reason: `Source URL in pipeline: ${sourceUrl}` };
     }

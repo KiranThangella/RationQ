@@ -531,6 +531,7 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({
             )}
 
             {/* SECTION 10: Source Verification Box */}
+            {article.source && (
             <section className="p-5 rounded-2xl bg-slate-100 border border-slate-200 space-y-3">
               <h3 className="font-bold text-slate-900 text-sm uppercase tracking-wider flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-emerald-700" />
@@ -567,6 +568,7 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({
                 </a>
               </div>
             </section>
+            )}
 
             {/* Platform Disclaimer */}
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center text-slate-500 text-[11px] leading-relaxed">

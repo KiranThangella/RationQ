@@ -86,7 +86,7 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({
               {article.category}
             </span>
 
-            {article.source.verificationStatus === 'verified' && (
+            {article.source?.verificationStatus === 'verified' && (
               <span className="text-emerald-800 flex items-center gap-1 text-[11px] font-bold bg-emerald-50/60 px-2.5 py-0.5 rounded-full border border-emerald-100">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                 Verified Source
