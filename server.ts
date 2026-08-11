@@ -88,19 +88,7 @@ async function startServer() {
 
   app.options('*', cors());
 
-  // Fail-safe CORS Header Interceptor for all requests including static/404s
-  app.use((req: Request, res: Response, next: any) => {
-    const origin = req.headers.origin || req.get('Origin') || 'https://rationq.in';
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
-    res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma');
-    if (req.method === 'OPTIONS') {
-      return res.status(200).end();
-    }
-    next();
-  });
-
+  
   app.use(express.json());
 
   // --- API ROUTES ---
